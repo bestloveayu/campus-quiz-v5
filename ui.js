@@ -1,13 +1,15 @@
-import {setupStudio} from './studio.js?v=5.0';
+import {setupStudio} from './studio.js?v=5.1';
 import {setupWorkshop} from './workshop.js?v=5.0';
 import {parseText,mergeQuestions} from './text-core.mjs';
 import {extractDocument} from './document-reader.mjs';
-import {hintState} from './flow-core.mjs?v=5.0';
-import {createAuthor} from './author.js?v=5.0';
+import {hintState} from './flow-core.mjs?v=5.1';
+import {createAuthor} from './author.js?v=5.1';
 import {createWorld} from './world.js?v=5.0';
 import {validateBank,parseBank,gradeRound,validateBackup,demoBank,sampleText} from './core.mjs?v=5.0';
 import {offlineStorageKey,offlineBankState} from './offline-boot.mjs';
+import {installWindowDragging} from './window-drag.mjs';
 const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
+installWindowDragging();
 // Keep legacy JSON operations available, but out of the student's primary TXT workflow.
 const advancedBankBackup=document.createElement('details');
 advancedBankBackup.id='advancedBankBackup';
