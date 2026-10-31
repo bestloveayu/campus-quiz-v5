@@ -1,0 +1,37 @@
+/* Keep the playtest controls above the scene without covering the canvas. */
+body:not(.editing) .author-play-buttons{top:70px;right:24px;z-index:6}
+
+/* The exported, offline game is for playing, not editing. */
+body.offline-student #openJourney,
+body.offline-student #openTxtTop,
+body.offline-student #togglePanel,
+body.offline-student #openTxt,
+body.offline-student .author-bar,
+body.offline-student .author-play-buttons{display:none!important}
+
+body.offline-student .mission .mission-top,
+body.offline-student .mission h3{cursor:move;touch-action:none}
+
+@media(max-width:750px){
+ body:not(.editing) .author-play-buttons{top:132px;right:10px;left:10px;justify-content:flex-end;flex-wrap:wrap}
+ body:not(.editing) .author-play-buttons button{font-size:10px;padding:5px 7px}
+}
+
+/* Single-pane focus mode. Inline drag/resize sizes are restored on exit. */
+body.editing .studio-maximized{
+ position:fixed!important;
+ inset:58px 2vw 2vh 2vw!important;
+ width:96vw!important;
+ height:calc(98vh - 58px)!important;
+ min-width:0!important;
+ max-width:none!important;
+ min-height:0!important;
+ max-height:none!important;
+ z-index:80!important;
+ resize:none!important;
+ overflow:auto!important;
+ background:#fffdf6!important;
+ box-shadow:0 20px 90px #203e2c66!important;
+}
+.studio-maximized .panel-grip,.studio-maximized .mini-grip{position:sticky;top:0;z-index:4;background:#fffdf6}
+.pane-actions{display:inline-flex;gap:5px;align-items:center}

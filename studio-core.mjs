@@ -16,6 +16,11 @@ export function normalizeStudio(input){
   if(d.mode==='tasks'&&d.requires.some(id=>p.entities.some(e=>e.id===id&&(e.areaId||e.scene)===a.id)))throw Error(a.name+' 的門條件位於同一場域，無法從門外完成');
   if(d.mode==='item'&&!d.item.trim())throw Error(a.name+' 的門通行道具不得空白');
  }
+ for(let a of p.areas){
+  let destinations=a.door.destinations;
+  if(destinations===undefined)continue; // Legacy projects: all other areas remain reachable.
+  if(!Array.isArray(destinations)||(!destinations.length&&p.areas.length>1)||destinations.length>15||new Set(destinations).size!==destinations.length||destinations.some(id=>typeof id!=='string'||id===a.id||!ids.has(id)))throw Error(a.name+' 的門目的地設定不正確');
+ }
  for(let e of p.entities)if(e.rewardItem!==undefined&&(typeof e.rewardItem!=='string'||e.rewardItem.length>80))throw Error(e.name+' 的通行道具名稱不正確');
  for(let e of p.entities){e.areaId=e.areaId||(ids.has(e.scene)?e.scene:p.areas[0].id);let a=p.areas.find(a=>a.id===e.areaId);if(!a)throw Error(e.name+' 所在場域不存在');e.scene=templateMode(a.template);}
  p.visibility={mode:'progressive',fixedAreaId:p.areas[0].id,...p.visibility};if(!['progressive','all','fixed'].includes(p.visibility.mode))throw Error('視野模式不正確');if(!ids.has(p.visibility.fixedAreaId))throw Error('固定場域不存在');
@@ -43,14 +48,21 @@ export function travelAccess(project,run,areaId,editing=false){
  if(!visible)return {ok:false,reason:'此入口尚未揭露，或不在固定場域的可探索範圍內。'};
  return doorAccess(project,run,areaId);
 }
+export function doorDestinations(project,fromAreaId){
+ let from=project.areas.find(a=>a.id===fromAreaId);
+ if(!from)return [];
+ let allowed=from.door?.destinations;
+ return project.areas.filter(a=>a.id!==fromAreaId&&(!Array.isArray(allowed)||allowed.includes(a.id)));
+}
 export function navigationTarget(project,run,fromAreaId,toAreaId){
  if(fromAreaId===toAreaId)return {ok:true,pointId:null};
+ if(!doorDestinations(project,fromAreaId).some(a=>a.id===toAreaId))return {ok:false,reason:'目前場域的門未設定通往目標場域'};
  let status=travelAccess(project,run,toAreaId);if(!status.ok)return status;
  let current=project.areas.find(a=>a.id===fromAreaId);if(!current)return {ok:false,reason:'目前場域不存在'};
  return {ok:true,pointId:doorwayFor(current.template).type};
 }
 export function addArea(project,name,template){if(project.areas.length>=16)throw Error('最多 16 個場域');if(!templates[template]||!name.trim()||name.length>80)throw Error('請填場域名稱並選擇模板');let i=1;while(project.areas.some(a=>a.id==='area-'+i))i++;let last=project.entities.filter(e=>e.kind==='challenge').at(-1);let area={id:'area-'+i,name:name.trim(),template,requires:last?[last.id]:[]};project.areas.push(area);return area;}
-export function removeArea(project,id){if(project.areas.length<=1)throw Error('至少保留一個場域');if(project.entities.some(e=>e.areaId===id))throw Error('此場域仍有素材，請先移動或移除素材');project.areas=project.areas.filter(a=>a.id!==id);if(project.visibility.fixedAreaId===id)project.visibility.fixedAreaId=project.areas[0].id;}
+export function removeArea(project,id){if(project.areas.length<=1)throw Error('至少保留一個場域');if(project.entities.some(e=>e.areaId===id))throw Error('此場域仍有素材，請先移動或移除素材');project.areas=project.areas.filter(a=>a.id!==id);for(let a of project.areas)if(Array.isArray(a.door?.destinations)){a.door.destinations=a.door.destinations.filter(d=>d!==id);if(!a.door.destinations.length)delete a.door.destinations;}if(project.visibility.fixedAreaId===id)project.visibility.fixedAreaId=project.areas[0].id;}
 export function moveEntityArea(project,id,areaId){let a=project.areas.find(a=>a.id===areaId),e=project.entities.find(e=>e.id===id);if(!a||!e)throw Error('素材或場域不存在');e.areaId=areaId;e.scene=templateMode(a.template);}
 export function removeEntity(project,id){project.entities=project.entities.filter(e=>e.id!==id);for(let e of project.entities){e.requires=(e.requires||[]).filter(r=>r!==id);if(e.next===id)e.next='';if(e.failNext===id)e.failNext='';for(let c of e.choices||[])if(c.next===id)c.next='';}for(let a of project.areas){let had=a.requires.includes(id);a.requires=a.requires.filter(r=>r!==id);if(had&&!a.requires.length)a.initialVisible=true;if(a.door?.requires?.includes(id)){a.door.requires=a.door.requires.filter(r=>r!==id);if(a.door.mode==='tasks'&&!a.door.requires.length)a.door.mode='open';}}if(project.startId===id)project.startId=project.entities.find(functional)?.id||'';delete project.flowLayout[id];project.flowOrder=project.flowOrder.filter(x=>x!==id);project.extendedFlow=true;}
 export function reorderFlow(project,order){let ids=project.entities.filter(functional).map(e=>e.id);if(order.length!==ids.length||new Set(order).size!==ids.length||order.some(id=>!ids.includes(id)))throw Error('流程排列必須包含每個互動點一次');project.flowOrder=[...order];}

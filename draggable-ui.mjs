@@ -1,11 +1,11 @@
 // Allow dialogs and floating gameplay panels to move without interfering with inputs.
 export function enableDraggableWindows(doc=document){
-  const handles='dialog h2, dialog .eyebrow, #interaction h3, #panel .panel-head';
+  const handles='dialog h2, dialog .eyebrow, #interaction h3, #panel .panel-head, .mission .mission-top, .mission h3';
   let drag=null;
   doc.addEventListener('pointerdown',e=>{
     const handle=e.target.closest?.(handles);
     if(!handle||e.button!==0||e.target.closest('button,input,textarea,select,a,summary'))return;
-    const box=handle.closest('dialog,#interaction,#panel');
+    const box=handle.closest('dialog,#interaction,#panel,.mission');
     if(!box||box.classList.contains('hidden'))return;
     const rect=box.getBoundingClientRect();
     box.style.position='fixed';box.style.left=rect.left+'px';box.style.top=rect.top+'px';

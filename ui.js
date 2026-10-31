@@ -1,11 +1,11 @@
-import {setupStudio} from './studio.js?v=5.0';
-import {setupWorkshop} from './workshop.js?v=5.0';
+import {setupStudio} from './studio.js?v=5.2.2';
+import {setupWorkshop} from './workshop.js?v=5.2.2';
 import {parseText,mergeQuestions} from './text-core.mjs';
 import {extractDocument} from './document-reader.mjs';
-import {hintState} from './flow-core.mjs?v=5.0';
-import {createAuthor} from './author.js?v=5.0';
-import {createWorld} from './world.js?v=5.0';
-import {validateBank,parseBank,gradeRound,validateBackup,demoBank,sampleText} from './core.mjs?v=5.0';
+import {hintState} from './flow-core.mjs?v=5.2.2';
+import {createAuthor} from './author.js?v=5.2.2';
+import {createWorld} from './world.js?v=5.2.2';
+import {validateBank,parseBank,gradeRound,validateBackup,demoBank,sampleText} from './core.mjs?v=5.2.2';
 import {offlineStorageKey,offlineBankState} from './offline-boot.mjs';
 import {enableDraggableWindows} from './draggable-ui.mjs';
 const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
