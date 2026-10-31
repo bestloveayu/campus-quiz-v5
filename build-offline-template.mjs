@@ -36,7 +36,7 @@ async function collectModules(root){
 const BOOTSTRAP=`<script>
 document.body.classList.add('offline-student');
 document.title='學習大挑戰 · 學生遊戲';
-document.querySelector('.brand .version').innerHTML='V5.2<br>遊玩';
+document.querySelector('.brand .version').innerHTML='V5.2.1<br>遊玩';
 window.__CAMPUS_OFFLINE_GAME__=JSON.parse(new TextDecoder().decode(Uint8Array.from(atob('__CAMPUS_GAME_DATA_BASE64__'),c=>c.charCodeAt(0))));
 </script>`;
 
@@ -71,7 +71,7 @@ export async function buildOfflineTemplate(root=ROOT){
  const modules=await collectModules(root);
  const encoded=Buffer.from(JSON.stringify(modules),'utf8').toString('base64');
  const script=BOOTSTRAP+loader(encoded);
- const prior='<script type="module" src="ui.js?v=5.0"></script>';
+ const prior='<script type="module" src="ui.js?v=5.2.1"></script>';
  if(!html.includes(prior))throw Error('V5 entry script was not found');
  return html.replace(prior,script);
 }

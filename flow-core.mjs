@@ -67,7 +67,53 @@ export function checkProject(p){
 export function newRun(project,questions,materialVersion,settings={hints:true}){let check=checkProject(project);if(check.errors.length)throw Error(check.errors.join('；'));return {id:crypto.randomUUID(),at:new Date().toISOString(),project:structuredClone(project),questions:structuredClone(questions),materialVersion,settings:structuredClone(settings),activeId:project.startId,visited:[],items:[],hints:0,events:[],notes:'',noteHistory:[],finished:false};}
 export function canActivate(run,id){let e=run.project.entities.find(e=>e.id===id);if(!e||!functional(e))return {ok:false,reason:'不是互動點'};if(run.finished)return {ok:false,reason:'本回合已完成，請重設試玩開始新回合'};if(run.activeId!==id)return {ok:false,reason:'請先完成目前任務：'+(run.project.entities.find(e=>e.id===run.activeId)?.name||'上一站')};let missing=(e.requires||[]).filter(r=>!run.visited.includes(r));return missing.length?{ok:false,reason:'尚未完成前置條件：'+missing.map(r=>run.project.entities.find(e=>e.id===r)?.name||r).join('、')}:{ok:true};}
 export function event(run,type,data={}){run.events.push({at:new Date().toISOString(),type,...structuredClone(data)});}
-export function completeNode(run,id,outcome){let status=canActivate(run,id);if(!status.ok)throw Error(status.reason);let e=run.project.entities.find(e=>e.id===id),first=!run.visited.includes(id),next=e.next||'';if(e.kind==='npc'){let choice=e.choices[outcome];if(!choice)throw Error('請選擇有效對話選項');next=choice.next||'';if(first)run.hints+=choice.hints||0;event(run,'DIALOGUE_CHOICE',{nodeId:id,choice:outcome,text:choice.text,hintsGranted:first?(choice.hints||0):0})}else if(e.kind==='challenge'){if(typeof outcome!=='boolean')throw Error('挑戰需要評分結果');if(!outcome){next=e.failNext||id;event(run,'CHALLENGE_FAIL',{nodeId:id,next});run.activeId=next;return}event(run,'CHALLENGE_PASS',{nodeId:id,next})}else event(run,e.kind==='knowledge'?'KNOWLEDGE_COLLECT':'GOAL_REACHED',{nodeId:id,first});if(first){run.visited.push(id);if(e.rewardItem?.trim()){run.items=run.items||[];if(!run.items.includes(e.rewardItem)){run.items.push(e.rewardItem);event(run,'ITEM_OBTAINED',{nodeId:id,item:e.rewardItem});}}}run.activeId=next;if(e.kind==='goal'){run.finished=true;event(run,'RUN_COMPLETE')}else if(Array.isArray(e.routes)&&e.routes.length){let routes=eligibleRoutes(e,run);if(routes.length){let automatic=routes.filter(r=>r.condition&&r.condition!=='choice');if(automatic.length===1){run.activeId=automatic[0].next;event(run,'ROUTE_AUTO',{nodeId:id,next:run.activeId,label:automatic[0].label});}else if(routes.length===1){run.activeId=routes[0].next;}else{run.pendingFrom=id;run.pendingRoutes=routes;run.activeId='';}}}return run.activeId;}
+export function completeNode(run,id,outcome){
+ let status=canActivate(run,id);
+ if(!status.ok)throw Error(status.reason);
+ let e=run.project.entities.find(e=>e.id===id),first=!run.visited.includes(id),next=e.next||'';
+ if(e.kind==='npc'){
+  let choice=e.choices[outcome];
+  if(!choice)throw Error('請選擇有效對話選項');
+  next=choice.next||'';
+  if(first)run.hints+=choice.hints||0;
+  event(run,'DIALOGUE_CHOICE',{nodeId:id,choice:outcome,text:choice.text,hintsGranted:first?(choice.hints||0):0});
+ }else if(e.kind==='challenge'){
+  if(typeof outcome!=='boolean')throw Error('挑戰需要評分結果');
+  next=outcome?(e.next||''):(e.failNext||id);
+  event(run,outcome?'CHALLENGE_PASS':'CHALLENGE_FAIL',{nodeId:id,next});
+ }else event(run,e.kind==='knowledge'?'KNOWLEDGE_COLLECT':'GOAL_REACHED',{nodeId:id,first});
+ if(first&&(e.kind!=='challenge'||outcome)){
+  run.visited.push(id);
+  if(e.rewardItem?.trim()){
+   run.items=run.items||[];
+   if(!run.items.includes(e.rewardItem)){
+    run.items.push(e.rewardItem);
+    event(run,'ITEM_OBTAINED',{nodeId:id,item:e.rewardItem});
+   }
+  }
+ }
+ run.activeId=next;
+ if(e.kind==='goal'){
+  run.finished=true;
+  event(run,'RUN_COMPLETE');
+ }else if(Array.isArray(e.routes)&&e.routes.length){
+  let eligible=eligibleRoutes(e,run);
+  let automatic=eligible.filter(r=>r.condition&&r.condition!=='choice');
+  let manual=eligible.filter(r=>!r.condition||r.condition==='choice');
+  if(automatic.length){
+   // Conditional branches take priority; the first matching rule wins.
+   run.activeId=automatic[0].next;
+   event(run,'ROUTE_AUTO',{nodeId:id,next:run.activeId,label:automatic[0].label});
+  }else if(manual.length===1){
+   run.activeId=manual[0].next;
+  }else if(manual.length>1){
+   run.pendingFrom=id;
+   run.pendingRoutes=manual;
+   run.activeId='';
+  }
+ }
+ return run.activeId;
+}
 export function recordNote(run,text){if(run.notes===text)return;run.noteHistory.push({at:new Date().toISOString(),before:run.notes,after:text});run.notes=text;event(run,'NOTE_EDIT',{version:run.noteHistory.length});}
 
 export function validateAuthorBackup(obj){
