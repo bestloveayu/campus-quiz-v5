@@ -8,6 +8,14 @@ import {createWorld} from './world.js?v=5.0';
 import {validateBank,parseBank,gradeRound,validateBackup,demoBank,sampleText} from './core.mjs?v=5.0';
 import {offlineStorageKey,offlineBankState} from './offline-boot.mjs';
 const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
+// Keep legacy JSON operations available, but out of the student's primary TXT workflow.
+const advancedBankBackup=document.createElement('details');
+advancedBankBackup.id='advancedBankBackup';
+advancedBankBackup.innerHTML='<summary>進階備份（題庫與紀錄 JSON）</summary><p class="muted small">完整保留既有題庫與作答紀錄的還原功能。</p>';
+$('#exportBank').parentElement.after(advancedBankBackup);
+advancedBankBackup.appendChild($('#exportBank'));
+advancedBankBackup.appendChild($('#exportAll'));
+advancedBankBackup.appendChild(document.querySelector('label[for="restoreFile"]'));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const offlineGame=globalThis.__CAMPUS_OFFLINE_GAME__||null,key=offlineStorageKey('ctcn-island-v5-bank',offlineGame),letters=['A','B','C','D'];
 let state={version:1,questions:demoBank(),logs:[],edits:[],settings:{hints:true,passing:80,level:0},completed:false},storageError=false;
