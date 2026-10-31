@@ -1,0 +1,189 @@
+{
+  "format": "ctcn-author-v5",
+  "project": {
+    "id": "fixed-skills-demo",
+    "version": 1,
+    "title": "單間技能教室練習",
+    "startId": "intro",
+    "areas": [
+      {
+        "id": "skills",
+        "name": "護理技能教室",
+        "template": "skills",
+        "requires": [],
+        "initialVisible": true
+      }
+    ],
+    "visibility": {
+      "mode": "fixed",
+      "fixedAreaId": "skills"
+    },
+    "entities": [
+      {
+        "id": "intro",
+        "kind": "knowledge",
+        "name": "複習說明",
+        "scene": "room",
+        "areaId": "skills",
+        "x": -2,
+        "z": 5,
+        "yaw": 0,
+        "text": "這份示範固定顯示一間技能教室，完成說明後到挑戰桌。",
+        "source": "V5 操作示範",
+        "requires": [],
+        "next": "practice"
+      },
+      {
+        "id": "practice",
+        "kind": "challenge",
+        "name": "單間複習挑戰",
+        "scene": "room",
+        "areaId": "skills",
+        "x": 2,
+        "z": 1,
+        "yaw": 0,
+        "text": "從示範題庫抽出兩題。",
+        "requires": [
+          "intro"
+        ],
+        "next": "finish",
+        "failNext": "practice",
+        "count": 2,
+        "threshold": 50,
+        "difficulty": 0,
+        "bank": "全部",
+        "hintsEnabled": true,
+        "hintCount": 2
+      },
+      {
+        "id": "finish",
+        "kind": "goal",
+        "name": "完成單間練習",
+        "scene": "room",
+        "areaId": "skills",
+        "x": -3,
+        "z": -1,
+        "yaw": 0,
+        "text": "完成！可以下載完整編輯存檔，帶走題庫與紀錄。",
+        "requires": [
+          "practice"
+        ],
+        "next": ""
+      }
+    ],
+    "flowLayout": {},
+    "flowOrder": [
+      "intro",
+      "practice",
+      "finish"
+    ]
+  },
+  "questionBank": [
+    {
+      "id": "Q001",
+      "bank": "工具操作",
+      "text": "想只練習特定章節，應調整哪個設定？",
+      "options": [
+        "畫面亮度",
+        "題庫範圍",
+        "人物名稱",
+        "背景配色"
+      ],
+      "answer": "B",
+      "explanation": "關卡的題庫範圍會篩選符合分類的題目；其他設定不決定出題內容。",
+      "hint": "哪個設定和題目的分類有關？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q002",
+      "bank": "工具操作",
+      "text": "哪一項能確認本次挑戰的答題情形？",
+      "options": [
+        "只看人物走到哪裡",
+        "只看成就名稱",
+        "查看分數與逐題解析",
+        "只看遊戲封面"
+      ],
+      "answer": "C",
+      "explanation": "分數與逐題解析包含本次結果，可以對照自己的答案與題目說明。",
+      "hint": "找找能看到每道題目的地方。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q003",
+      "bank": "工具操作",
+      "text": "想在下次繼續使用自己的題庫，最合適的做法是？",
+      "options": [
+        "匯出題庫或完整作品備份",
+        "只記住畫面顏色",
+        "刪除瀏覽器資料",
+        "只關閉電腦"
+      ],
+      "answer": "A",
+      "explanation": "下載題庫或完整作品備份，可在需要時重新匯入；只依靠瀏覽器資料仍可能遺失。",
+      "hint": "哪一項會留下檔案？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q004",
+      "bank": "複習策略",
+      "text": "做錯一道題目後，哪種方式最有助於安排下一次練習？",
+      "options": [
+        "忽略題目",
+        "只記住選項位置",
+        "刪除所有紀錄",
+        "閱讀解析並記下錯誤原因"
+      ],
+      "answer": "D",
+      "explanation": "閱讀解析並辨識錯誤原因，有助於選擇下一次需要複習的範圍。",
+      "hint": "分數之外，還需要了解什麼？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q005",
+      "bank": "複習策略",
+      "text": "使用提示才答對的題目，紀錄時應如何處理？",
+      "options": [
+        "直接刪掉",
+        "保留作答與提示使用情形",
+        "當成完全沒作答",
+        "只留下最高分"
+      ],
+      "answer": "B",
+      "explanation": "同時保留作答與提示使用情形，能區分獨立完成與接受協助的結果。",
+      "hint": "完整紀錄比只看分數更能反映練習過程。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q006",
+      "bank": "複習策略",
+      "text": "哪一種測試能檢查關卡解鎖規則是否正確？",
+      "options": [
+        "只更換配色",
+        "只修改角色姓名",
+        "分別測試通關與未通關",
+        "只打開首頁"
+      ],
+      "answer": "C",
+      "explanation": "測試達成與未達成條件的情況，才能檢查關卡是否正確開放或維持鎖定。",
+      "hint": "規則要測試成功與失敗兩邊。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 2
+    }
+  ],
+  "materialVersion": 1,
+  "quizLogs": [],
+  "questionEdits": [],
+  "editHistory": [],
+  "runs": [],
+  "quizSettings": {
+    "passing": 80,
+    "hints": true,
+    "level": 0
+  }
+}

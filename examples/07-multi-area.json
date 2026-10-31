@@ -1,0 +1,606 @@
+{
+  "format": "ctcn-author-v5",
+  "project": {
+    "id": "3ff08b94-b71b-498b-9163-83deb2ef77c3",
+    "version": 13,
+    "title": "V5 多場域編輯示範",
+    "startId": "N1",
+    "entities": [
+      {
+        "id": "N1",
+        "kind": "npc",
+        "name": "學姐小莘",
+        "scene": "campus",
+        "x": -12,
+        "z": 5,
+        "yaw": 0,
+        "text": "歡迎來到我的校園！這些是功能測試題，之後可以換成你的護理題庫。\n小提醒：先看清楚題目與選項，再確認答案。",
+        "requires": [],
+        "stageId": "L1",
+        "choices": [
+          {
+            "text": "準備好了，前往挑戰",
+            "next": "L1",
+            "hints": 0
+          }
+        ],
+        "areaId": "campus"
+      },
+      {
+        "id": "L1",
+        "kind": "challenge",
+        "name": "校門口・準備出發",
+        "scene": "campus",
+        "x": -7,
+        "z": 5,
+        "yaw": 0,
+        "text": "先熟悉題庫與作答方式。答對至少一題，即可解鎖教學大樓。",
+        "requires": [
+          "N1"
+        ],
+        "stageId": "L1",
+        "region": "校門口",
+        "bank": "工具操作",
+        "count": 2,
+        "threshold": 50,
+        "difficulty": 0,
+        "hintsEnabled": true,
+        "hintCount": 2,
+        "next": "L2",
+        "failNext": "L1",
+        "areaId": "campus"
+      },
+      {
+        "id": "L2",
+        "kind": "challenge",
+        "name": "教學大樓・複習策略",
+        "scene": "room",
+        "x": -7,
+        "z": 4.6,
+        "yaw": 0,
+        "text": "這一關使用「複習策略」範圍。通過後開放圖書館挑戰。",
+        "requires": [
+          "L1"
+        ],
+        "stageId": "L2",
+        "region": "教學大樓",
+        "bank": "複習策略",
+        "count": 2,
+        "threshold": 50,
+        "difficulty": 0,
+        "hintsEnabled": true,
+        "hintCount": 1,
+        "next": "N2",
+        "failNext": "L2",
+        "areaId": "room"
+      },
+      {
+        "id": "N2",
+        "kind": "npc",
+        "name": "圖書館學長",
+        "scene": "room",
+        "x": -3.2,
+        "z": 4.6,
+        "yaw": 0,
+        "text": "你已解鎖最後一個挑戰區域。圖書館使用既有教室模型示意，未新增建築。\n小提醒：完成後可以打開成就地圖，重玩已解鎖的關卡。",
+        "requires": [
+          "L2"
+        ],
+        "stageId": "L3",
+        "choices": [
+          {
+            "text": "準備好了，前往挑戰",
+            "next": "L3",
+            "hints": 0
+          }
+        ],
+        "areaId": "area-L3"
+      },
+      {
+        "id": "L3",
+        "kind": "challenge",
+        "name": "圖書館・綜合挑戰",
+        "scene": "room",
+        "x": 2,
+        "z": 4.6,
+        "yaw": 0,
+        "text": "從全部題庫抽出三題，這次關閉提示。試著靠自己完成！",
+        "requires": [
+          "N2"
+        ],
+        "stageId": "L3",
+        "region": "圖書館",
+        "bank": "全部",
+        "count": 3,
+        "threshold": 60,
+        "difficulty": 0,
+        "hintsEnabled": false,
+        "hintCount": 0,
+        "next": "376d1935-8bc4-44b7-90ab-fabbcd5e64b5",
+        "failNext": "L3",
+        "areaId": "area-L3"
+      },
+      {
+        "id": "txt-goal",
+        "kind": "goal",
+        "name": "完成校園探索",
+        "scene": "room",
+        "x": 7,
+        "z": 4.6,
+        "yaw": 0,
+        "text": "所有關卡已通關。查看成就與學習紀錄，或重玩已解鎖關卡。",
+        "requires": [
+          "376d1935-8bc4-44b7-90ab-fabbcd5e64b5"
+        ],
+        "next": "",
+        "areaId": "room"
+      },
+      {
+        "id": "376d1935-8bc4-44b7-90ab-fabbcd5e64b5",
+        "kind": "knowledge",
+        "name": "技能教室知識站",
+        "scene": "room",
+        "areaId": "area-1",
+        "x": 0,
+        "z": -0.5,
+        "yaw": 0,
+        "text": "這是在匯入 TXT 後新增的素材，可與原本任務串接。",
+        "requires": [
+          "L3"
+        ],
+        "next": "txt-goal",
+        "source": "V5 編輯操作測試"
+      }
+    ],
+    "txtDesign": {
+      "id": "3ff08b94-b71b-498b-9163-83deb2ef77c3",
+      "title": "V5 多場域編輯示範",
+      "author": "學生示範",
+      "story": "你收到學姐的校園探索邀請。\n從校門口啟程，完成挑戰、解鎖新區域，收集屬於自己的成就。",
+      "theme": "森林綠",
+      "stages": [
+        {
+          "id": "L1",
+          "name": "校門口・準備出發",
+          "scene": "校門口",
+          "bank": "工具操作",
+          "count": 2,
+          "threshold": 50,
+          "hints": true,
+          "hintCount": 2,
+          "unlock": "L2",
+          "text": "先熟悉題庫與作答方式。答對至少一題，即可解鎖教學大樓。"
+        },
+        {
+          "id": "L2",
+          "name": "教學大樓・複習策略",
+          "scene": "教學大樓",
+          "bank": "複習策略",
+          "count": 2,
+          "threshold": 50,
+          "hints": true,
+          "hintCount": 1,
+          "unlock": "L3",
+          "text": "這一關使用「複習策略」範圍。通過後開放圖書館挑戰。"
+        },
+        {
+          "id": "L3",
+          "name": "圖書館・綜合挑戰",
+          "scene": "圖書館",
+          "bank": "全部",
+          "count": 3,
+          "threshold": 60,
+          "hints": false,
+          "hintCount": 0,
+          "unlock": "",
+          "text": "從全部題庫抽出三題，這次關閉提示。試著靠自己完成！"
+        }
+      ],
+      "characters": [
+        {
+          "id": "N1",
+          "name": "學姐小莘",
+          "stage": "L1",
+          "text": "歡迎來到我的校園！這些是功能測試題，之後可以換成你的護理題庫。",
+          "hint": "先看清楚題目與選項，再確認答案。"
+        },
+        {
+          "id": "N2",
+          "name": "圖書館學長",
+          "stage": "L3",
+          "text": "你已解鎖最後一個挑戰區域。圖書館使用既有教室模型示意，未新增建築。",
+          "hint": "完成後可以打開成就地圖，重玩已解鎖的關卡。"
+        }
+      ],
+      "achievements": [
+        {
+          "id": "A1",
+          "name": "完美的一輪",
+          "condition": "單次全對",
+          "minimum": 2,
+          "times": 1,
+          "reward": "獲得金色完美徽章！"
+        },
+        {
+          "id": "A2",
+          "name": "持續前進",
+          "condition": "累計完成挑戰",
+          "minimum": 1,
+          "times": 3,
+          "reward": "三輪練習完成，獲得毅力徽章。"
+        },
+        {
+          "id": "A3",
+          "name": "連勝小達人",
+          "condition": "連續通關",
+          "minimum": 1,
+          "times": 2,
+          "reward": "連續通關兩次，獲得連勝徽章。"
+        }
+      ]
+    },
+    "areas": [
+      {
+        "id": "campus",
+        "name": "新店校園",
+        "template": "campus",
+        "requires": [],
+        "initialVisible": false
+      },
+      {
+        "id": "room",
+        "name": "教學大樓",
+        "template": "classroom",
+        "requires": [
+          "L1"
+        ],
+        "initialVisible": false
+      },
+      {
+        "id": "area-L3",
+        "name": "圖書館",
+        "template": "library",
+        "requires": [
+          "L2"
+        ],
+        "initialVisible": false
+      },
+      {
+        "id": "area-1",
+        "name": "護理技能教室 B",
+        "template": "skills",
+        "requires": [
+          "L3"
+        ],
+        "initialVisible": false
+      }
+    ],
+    "visibility": {
+      "mode": "progressive",
+      "fixedAreaId": "area-1"
+    },
+    "flowLayout": {
+      "N1": {
+        "x": 30,
+        "y": 45
+      },
+      "L1": {
+        "x": 255,
+        "y": 45
+      },
+      "L2": {
+        "x": 480,
+        "y": 45
+      },
+      "N2": {
+        "x": 705,
+        "y": 45
+      },
+      "L3": {
+        "x": 930,
+        "y": 45
+      },
+      "376d1935-8bc4-44b7-90ab-fabbcd5e64b5": {
+        "x": 1155,
+        "y": 45
+      },
+      "txt-goal": {
+        "x": 1380,
+        "y": 45
+      }
+    },
+    "flowOrder": [
+      "N1",
+      "L1",
+      "L2",
+      "N2",
+      "L3",
+      "376d1935-8bc4-44b7-90ab-fabbcd5e64b5",
+      "txt-goal"
+    ],
+    "makingNotes": [
+      {
+        "type": "需求",
+        "text": "我要三個關卡、兩個題庫範圍與三種成就，完成後可以回去重玩。\n這是功能範例，不含臨床答案。"
+      }
+    ],
+    "workspaceLayout": {
+      "leftWidth": 205,
+      "rightWidth": 388,
+      "flowHeight": 288,
+      "leftFold": false,
+      "rightFold": false,
+      "flowFold": false,
+      "miniFold": false,
+      "leftHeight": 547,
+      "rightHeight": 547,
+      "flowWidth": 1408,
+      "miniWidth": 243,
+      "miniHeight": 300,
+      "miniLeft": 340,
+      "miniTop": 225
+    },
+    "extendedFlow": true
+  },
+  "editHistory": [],
+  "runs": [],
+  "questionBank": [
+    {
+      "id": "Q001",
+      "bank": "工具操作",
+      "text": "想只練習特定章節，應調整哪個設定？",
+      "options": [
+        "畫面亮度",
+        "題庫範圍",
+        "人物名稱",
+        "背景配色"
+      ],
+      "answer": "B",
+      "explanation": "關卡的題庫範圍會篩選符合分類的題目；其他設定不決定出題內容。",
+      "hint": "哪個設定和題目的分類有關？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q002",
+      "bank": "工具操作",
+      "text": "哪一項能確認本次挑戰的答題情形？",
+      "options": [
+        "只看人物走到哪裡",
+        "只看成就名稱",
+        "查看分數與逐題解析",
+        "只看遊戲封面"
+      ],
+      "answer": "C",
+      "explanation": "分數與逐題解析包含本次結果，可以對照自己的答案與題目說明。",
+      "hint": "找找能看到每道題目的地方。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q003",
+      "bank": "工具操作",
+      "text": "想在下次繼續使用自己的題庫，最合適的做法是？",
+      "options": [
+        "匯出題庫或完整作品備份",
+        "只記住畫面顏色",
+        "刪除瀏覽器資料",
+        "只關閉電腦"
+      ],
+      "answer": "A",
+      "explanation": "下載題庫或完整作品備份，可在需要時重新匯入；只依靠瀏覽器資料仍可能遺失。",
+      "hint": "哪一項會留下檔案？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q004",
+      "bank": "複習策略",
+      "text": "做錯一道題目後，哪種方式最有助於安排下一次練習？",
+      "options": [
+        "忽略題目",
+        "只記住選項位置",
+        "刪除所有紀錄",
+        "閱讀解析並記下錯誤原因"
+      ],
+      "answer": "D",
+      "explanation": "閱讀解析並辨識錯誤原因，有助於選擇下一次需要複習的範圍。",
+      "hint": "分數之外，還需要了解什麼？",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q005",
+      "bank": "複習策略",
+      "text": "使用提示才答對的題目，紀錄時應如何處理？",
+      "options": [
+        "直接刪掉",
+        "保留作答與提示使用情形",
+        "當成完全沒作答",
+        "只留下最高分"
+      ],
+      "answer": "B",
+      "explanation": "同時保留作答與提示使用情形，能區分獨立完成與接受協助的結果。",
+      "hint": "完整紀錄比只看分數更能反映練習過程。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 1
+    },
+    {
+      "id": "Q006",
+      "bank": "複習策略",
+      "text": "哪一種測試能檢查關卡解鎖規則是否正確？",
+      "options": [
+        "只更換配色",
+        "只修改角色姓名",
+        "分別測試通關與未通關",
+        "只打開首頁"
+      ],
+      "answer": "C",
+      "explanation": "測試達成與未達成條件的情況，才能檢查關卡是否正確開放或維持鎖定。",
+      "hint": "規則要測試成功與失敗兩邊。",
+      "source": "編輯器功能測試素材，非護理專業評量",
+      "difficulty": 2
+    }
+  ],
+  "materialVersion": 2,
+  "quizLogs": [],
+  "questionEdits": [
+    {
+      "at": "2026-10-30T15:27:03.541Z",
+      "action": "TXT題庫匯入",
+      "before": [
+        {
+          "id": "192d6d8a-5e6d-4c54-bb10-9eed52e9f500",
+          "bank": "未分類",
+          "text": "查核 AI 產生的複習題時，最應優先確認什麼？",
+          "options": [
+            "文字看起來專業",
+            "答案與指定教材一致",
+            "題目愈長愈好",
+            "選項排列整齊"
+          ],
+          "answer": "B",
+          "explanation": "應回到指定教材，確認題目、答案與解析都有依據；專業語氣不能保證正確。",
+          "hint": "想想哪些資訊能提供原始證據。",
+          "source": "AI 學習素養操作示範，非護理正式評量",
+          "difficulty": 1
+        },
+        {
+          "id": "6731c8bd-7330-4662-991e-9b8710fe035f",
+          "bank": "未分類",
+          "text": "AI 的解析與課堂講義不同，下一步應該怎麼做？",
+          "options": [
+            "立即相信 AI",
+            "直接刪除講義",
+            "核對來源，標記並修正題目",
+            "只修改題目顏色"
+          ],
+          "answer": "C",
+          "explanation": "先核對講義與教師確認內容；查核前應標記不確定，不應直接把生成內容視為正確答案。",
+          "hint": "先釐清證據，再決定如何修正。",
+          "source": "AI 學習素養操作示範，非護理正式評量",
+          "difficulty": 1
+        },
+        {
+          "id": "46303c48-9fc4-4a9d-af07-d749ff7bee09",
+          "bank": "未分類",
+          "text": "使用學長姐提示後答對，哪一種紀錄最有助於複習？",
+          "options": [
+            "只留最高分",
+            "刪除提示紀錄",
+            "全部當作獨立答對",
+            "同時保留作答結果與提示使用"
+          ],
+          "answer": "D",
+          "explanation": "分別保留答案、提示使用與題目版本，才能判斷哪些概念已能獨立掌握、哪些仍需要協助。",
+          "hint": "分數以外，哪些歷程也值得保留？",
+          "source": "AI 學習素養操作示範，非護理正式評量",
+          "difficulty": 1
+        }
+      ],
+      "after": [
+        {
+          "id": "Q001",
+          "bank": "工具操作",
+          "text": "想只練習特定章節，應調整哪個設定？",
+          "options": [
+            "畫面亮度",
+            "題庫範圍",
+            "人物名稱",
+            "背景配色"
+          ],
+          "answer": "B",
+          "explanation": "關卡的題庫範圍會篩選符合分類的題目；其他設定不決定出題內容。",
+          "hint": "哪個設定和題目的分類有關？",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 1
+        },
+        {
+          "id": "Q002",
+          "bank": "工具操作",
+          "text": "哪一項能確認本次挑戰的答題情形？",
+          "options": [
+            "只看人物走到哪裡",
+            "只看成就名稱",
+            "查看分數與逐題解析",
+            "只看遊戲封面"
+          ],
+          "answer": "C",
+          "explanation": "分數與逐題解析包含本次結果，可以對照自己的答案與題目說明。",
+          "hint": "找找能看到每道題目的地方。",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 1
+        },
+        {
+          "id": "Q003",
+          "bank": "工具操作",
+          "text": "想在下次繼續使用自己的題庫，最合適的做法是？",
+          "options": [
+            "匯出題庫或完整作品備份",
+            "只記住畫面顏色",
+            "刪除瀏覽器資料",
+            "只關閉電腦"
+          ],
+          "answer": "A",
+          "explanation": "下載題庫或完整作品備份，可在需要時重新匯入；只依靠瀏覽器資料仍可能遺失。",
+          "hint": "哪一項會留下檔案？",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 1
+        },
+        {
+          "id": "Q004",
+          "bank": "複習策略",
+          "text": "做錯一道題目後，哪種方式最有助於安排下一次練習？",
+          "options": [
+            "忽略題目",
+            "只記住選項位置",
+            "刪除所有紀錄",
+            "閱讀解析並記下錯誤原因"
+          ],
+          "answer": "D",
+          "explanation": "閱讀解析並辨識錯誤原因，有助於選擇下一次需要複習的範圍。",
+          "hint": "分數之外，還需要了解什麼？",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 1
+        },
+        {
+          "id": "Q005",
+          "bank": "複習策略",
+          "text": "使用提示才答對的題目，紀錄時應如何處理？",
+          "options": [
+            "直接刪掉",
+            "保留作答與提示使用情形",
+            "當成完全沒作答",
+            "只留下最高分"
+          ],
+          "answer": "B",
+          "explanation": "同時保留作答與提示使用情形，能區分獨立完成與接受協助的結果。",
+          "hint": "完整紀錄比只看分數更能反映練習過程。",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 1
+        },
+        {
+          "id": "Q006",
+          "bank": "複習策略",
+          "text": "哪一種測試能檢查關卡解鎖規則是否正確？",
+          "options": [
+            "只更換配色",
+            "只修改角色姓名",
+            "分別測試通關與未通關",
+            "只打開首頁"
+          ],
+          "answer": "C",
+          "explanation": "測試達成與未達成條件的情況，才能檢查關卡是否正確開放或維持鎖定。",
+          "hint": "規則要測試成功與失敗兩邊。",
+          "source": "編輯器功能測試素材，非護理專業評量",
+          "difficulty": 2
+        }
+      ]
+    }
+  ],
+  "quizSettings": {
+    "hints": true,
+    "passing": 80,
+    "level": 0
+  }
+}

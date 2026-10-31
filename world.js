@@ -1,0 +1,196 @@
+import {templateMode,doorwayFor} from './studio-core.mjs';
+import * as T from 'three';
+import {OrbitControls} from './vendor/OrbitControls.js';
+import {mergeGeometries} from './vendor/BufferGeometryUtils.js';
+import {findPath,advanceRoute} from './core.mjs?v=2.2';
+const C={cream:0xf0ead6,wall:0xe4d5bd,trim:0xc28d70,roof:0xa57156,green:0x526e4a,leaf:0x8da774,leaf2:0xa9bc85,wood:0xa87951,pavement:0xe4ddc8,glass:0x72928d,ink:0x375343,grass:0xa9bd8c};
+const materials=new Map();
+function mat(color,extra={}){let key=JSON.stringify([color,extra]);if(!materials.has(key))materials.set(key,new T.MeshStandardMaterial({color,roughness:.92,...extra}));return materials.get(key)}
+function mesh(geo,color,parent,x=0,y=0,z=0,extra={}){let m=new T.Mesh(geo,mat(color,extra));m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;parent.add(m);return m}
+function box(p,x,y,z,w,h,d,c,extra){return mesh(new T.BoxGeometry(w,h,d),c,p,x,y,z,extra)}
+function cyl(p,x,y,z,r,h,c,n=12,r2=r){return mesh(new T.CylinderGeometry(r,r2,h,n),c,p,x,y,z)}
+function ball(p,x,y,z,r,c,detail=1){return mesh(new T.IcosahedronGeometry(r,detail),c,p,x,y,z)}
+function group(p,x=0,y=0,z=0){let g=new T.Group();g.position.set(x,y,z);p.add(g);return g}
+function roundPlate(p,w,d,h,r,y,color){let s=new T.Shape();s.moveTo(-w/2+r,-d/2);s.lineTo(w/2-r,-d/2);s.quadraticCurveTo(w/2,-d/2,w/2,-d/2+r);s.lineTo(w/2,d/2-r);s.quadraticCurveTo(w/2,d/2,w/2-r,d/2);s.lineTo(-w/2+r,d/2);s.quadraticCurveTo(-w/2,d/2,-w/2,d/2-r);s.lineTo(-w/2,-d/2+r);s.quadraticCurveTo(-w/2,-d/2,-w/2+r,-d/2);let geo=new T.ExtrudeGeometry(s,{depth:h,bevelEnabled:true,bevelSize:.13,bevelThickness:.12,bevelSegments:2,steps:1,curveSegments:5});geo.rotateX(-Math.PI/2);return mesh(geo,color,p,0,y,0)}
+function sign(p,text,x,y,z,w=5,h=.6,color='#385243',bg='#eee8d4'){
+ let cv=document.createElement('canvas');cv.width=1024;cv.height=160;let ctx=cv.getContext('2d');ctx.fillStyle=bg;ctx.fillRect(0,0,1024,160);ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='600 65px "Microsoft JhengHei", sans-serif';ctx.fillText(text,512,84,940);let tex=new T.CanvasTexture(cv);tex.colorSpace=T.SRGBColorSpace;let m=new T.Mesh(new T.PlaneGeometry(w,h),new T.MeshBasicMaterial({map:tex}));m.position.set(x,y,z);p.add(m);return m;
+}
+let randomSeed=41;function rand(){randomSeed=(randomSeed*1664525+1013904223)>>>0;return randomSeed/4294967296}
+export function createWorld({container,onLocation,onNear,onMessage,onSelect=()=>{},onPlace=()=>{},onDrag=()=>{}}){
+ let scene=new T.Scene();scene.background=new T.Color(0xe8ebdc);scene.fog=new T.Fog(0xe8ebdc,85,160);
+ let renderer;try{renderer=new T.WebGLRenderer({antialias:true,alpha:false,powerPreference:'high-performance'});}catch(e){throw Error('此瀏覽器無法啟用 WebGL，請使用支援硬體加速的 Edge 或 Chrome。')}
+ renderer.setPixelRatio(Math.min(devicePixelRatio,1.7));renderer.shadowMap.enabled=true;renderer.shadowMap.type=T.PCFSoftShadowMap;renderer.outputColorSpace=T.SRGBColorSpace;renderer.toneMapping=T.ACESFilmicToneMapping;renderer.toneMappingExposure=1.2;container.append(renderer.domElement);
+ let camera=new T.OrthographicCamera(-30,30,20,-20,.1,250);camera.position.set(34,31,42);
+ let controls=new OrbitControls(camera,renderer.domElement);controls.target.set(0,2,0);controls.enableDamping=true;controls.dampingFactor=.07;controls.enablePan=false;controls.minPolarAngle=.35;controls.maxPolarAngle=1.15;controls.minZoom=.65;controls.maxZoom=2.4;controls.rotateSpeed=.55;controls.mouseButtons={LEFT:T.MOUSE.ROTATE,MIDDLE:T.MOUSE.DOLLY,RIGHT:T.MOUSE.ROTATE};controls.touches={ONE:T.TOUCH.ROTATE,TWO:T.TOUCH.DOLLY_ROTATE};
+ scene.add(new T.HemisphereLight(0xfff9df,0x879974,2.4));let sun=new T.DirectionalLight(0xfff4d5,3.8);sun.position.set(-20,32,18);sun.castShadow=true;sun.shadow.mapSize.set(2048,2048);sun.shadow.camera.left=-32;sun.shadow.camera.right=32;sun.shadow.camera.top=32;sun.shadow.camera.bottom=-32;sun.shadow.camera.near=1;sun.shadow.camera.far=90;sun.shadow.normalBias=.035;sun.shadow.bias=-.00015;sun.shadow.radius=4;scene.add(sun);scene.add(sun.target);
+ let ground=box(scene,0,-1.7,0,350,.2,350,0xe4e8d6);ground.receiveShadow=true;ground.castShadow=false;
+ let campus=group(scene),indoor=group(scene);indoor.visible=false;
+ let authorMode=false,placeKind=null,authored=null,dragEntity=null;const entityModels=new Map();let mode='campus',obstacles={campus:[],room:[]},labels=[],points=[],path=[],routeAction=null,near=null,paused=false,following=false,elapsed=0,animating=null;
+ const addObstacle=(mode,x,z,w,d)=>obstacles[mode].push({x,z,w,d});
+ function tree(parent,x,z,size=1,obstacle=true){let g=group(parent,x,0,z);cyl(g,0,.65*size,0,.14*size,1.3*size,0x8e7756,7);let foliage=group(g);ball(foliage,0,1.65*size,0,.85*size,C.leaf,1);ball(foliage,-.45*size,1.5*size,.12*size,.55*size,C.leaf2,1);ball(foliage,.37*size,1.92*size,-.1*size,.57*size,0x9eb57e,1);let foot=cyl(g,0,.025,0,.9*size,.05,0x95ac79,16);foot.castShadow=false;if(obstacle)addObstacle('campus',x,z,.65,.65);return g}
+ function shrub(parent,x,z,w=1){let g=group(parent,x,0,z);box(g,0,.18,0,w,.35,.7,0xc4b89b);for(let i=0;i<Math.ceil(w/.4);i++)ball(g,-w/2+.25+i*.4,.5,0,.36,C.leaf,1);return g}
+ function planter(parent,x,z,flowers=false){let g=group(parent,x,0,z);cyl(g,0,.22,0,.6,.42,0xc8b08b,10,.48);cyl(g,0,.45,0,.65,.13,0xdbcaac,10);ball(g,0,.68,0,.48,C.leaf,1);if(flowers)for(let i=0;i<5;i++){let a=i/5*Math.PI*2;ball(g,Math.cos(a)*.3,.98,Math.sin(a)*.3,.1,i%2?0xeee0a6:0xc48d7b,0)}return g}
+ function bench(p,x,z,rot=0){let g=group(p,x,0,z);g.rotation.y=rot;for(let dx of [-.75,.75]){box(g,dx,.32,0,.12,.65,.62,0x526551);box(g,dx,.8,-.3,.1,.75,.1,0x526551)}for(let j=0;j<4;j++)box(g,0,.65,-.23+j*.16,1.9,.1,.12,C.wood);for(let j=0;j<3;j++)box(g,0,.89+j*.16,-.34,1.9,.11,.09,C.wood);addObstacle('campus',x,z,rot?1:2.1,rot?2.1:1);return g}
+ function lamp(p,x,z){let g=group(p,x,0,z);cyl(g,0,1.1,0,.055,2.2,0x5d6951,8);box(g,0,2.24,0,.46,.12,.46,0x53624b);let light=box(g,0,2.12,0,.28,.22,.28,0xf6e5ae,{emissive:0xe4bc66,emissiveIntensity:.2});box(g,0,2.0,0,.4,.06,.4,0x53624b);return light}
+ function person(parent,x,z,{shirt=0xf4f0dc,pants=0x435b54,hair=0x4a382c,bag=true,scale=1}={}){
+ let g=group(parent,x,0,z);g.scale.setScalar(scale);let body=group(g,0,.86,0);let torso=mesh(new T.CapsuleGeometry(.23,.38,3,6),shirt,body,0,.25,0);let head=ball(body,0,.93,0,.27,0xd9ad87,2);let hairMesh=ball(body,0,1.045,-.035,.27,hair,1);hairMesh.scale.set(1,.65,1);box(body,0,.94,.24,.1,.035,.03,0xe2b392);for(let dx of [-.095,.095])box(body,dx,.98,.242,.026,.035,.035,0x36392d);let legs=[],arms=[];for(let side of [-1,1]){let leg=group(g,side*.13,.7,0);mesh(new T.CapsuleGeometry(.085,.38,3,6),pants,leg,0,-.22,0);box(leg,0,-.5,.055,.17,.12,.3,0xf1ecda);legs.push(leg);let arm=group(body,side*.29,.46,0);mesh(new T.CapsuleGeometry(.075,.3,3,6),shirt,arm,0,-.17,0);ball(arm,0,-.4,0,.085,0xd9ad87,1);arms.push(arm)}if(bag){box(body,0,.27,-.26,.4,.47,.18,0xb67d51);box(body,0,.2,-.37,.26,.2,.035,0xc9996b);for(let side of [-1,1])box(body,side*.15,.37,0,.045,.48,.5,0xaa754f)}return {g,body,legs,arms};
+ }
+ function doorway(parent,x,z,label,color=0x537a68){
+  let g=group(parent,x,0,z);box(g,0,1.55,0,2.65,3.1,.3,0xd4c29f);box(g,-1.31,1.55,.22,.2,3.1,.28,0x917d60);box(g,1.31,1.55,.22,.2,3.1,.28,0x917d60);box(g,0,3.1,.22,2.85,.25,.4,0x8a7456);
+  for(let side of [-1,1]){let dx=side*.59;box(g,dx,1.48,.27,1.12,2.78,.13,color);box(g,dx,2.16,.36,.85,.76,.05,0x91b0aa,{roughness:.27,metalness:.1});box(g,dx,1.17,.37,.82,.08,.06,0x6b947d);ball(g,side*.17,1.4,.39,.085,0xe8d49e,1);}
+  box(g,0,.08,.5,2.95,.1,.85,0xc2b59a);if(label)sign(g,label,0,3.55,.29,3.25,.48,'#f5ecd5','#486d58');return g;
+ }
+ // The raised campus forms a miniature, with real geometry and cast shadows.
+ roundPlate(campus,39,31,.6,2,-1.0,0xc7bfa3);roundPlate(campus,38.7,30.7,.18,1.85,-.36,0xa6ba87);
+ // A quiet street along the front edge.
+ box(campus,0,-.12,12.9,36,.14,3.0,0xaaa996);box(campus,0,-.01,11.15,36,.12,.4,0xded7bd);box(campus,0,-.01,14.5,36,.12,.45,0xe1d8ba);
+ for(let i=-16;i<17;i+=3.5)box(campus,i,-.015,12.9,1.6,.02,.075,0xe2dcbf);
+ for(let z=12;z<14;z+=.35)box(campus,0,.015,z,2.5,.025,.16,0xf2ecda);
+ // Paved approach, forecourt and small garden square.
+ box(campus,0,-.09,5.5,9.4,.15,12.5,C.pavement);box(campus,0,-.07,2.7,29,.16,4.5,C.pavement);box(campus,11,-.1,7.5,9.5,.12,5.5,C.pavement);
+ for(let x=-4;x<=4;x+=1)for(let z=0;z<12;z+=1){let t=box(campus,x,-.002,z,.96,.025,.96,(Math.round(x+z)%3===0)?0xe9e2cc:0xddd6c0);t.castShadow=false}
+ for(let x=-13;x<14;x+=1)for(let z=1;z<=4;z+=1){if(Math.abs(x)<5)continue;let t=box(campus,x,-.001,z,.96,.025,.96,Math.round(x+z)%2?0xe2dac5:0xe8e1ce);t.castShadow=false}
+ // School architecture: illustrative, not a measured reconstruction.
+ const b=group(campus,0,0,-5.5);addObstacle('campus',0,-5.5,20.5,8.3);
+ box(b,0,4.3,0,20,8.6,7.4,C.wall);box(b,0,.2,0,20.6,.4,7.9,0xc6b399);
+ for(let floor=0;floor<4;floor++){let y=1.1+floor*2.05;box(b,0,y+1.12,.04,20.4,.21,7.8,0xf1ead7);box(b,0,y+1.28,3.82,20.3,.11,.14,0xb79275);
+ for(let j=0;j<11;j++){let x=-8.6+j*1.72;if(floor===0&&Math.abs(x)<2.5)continue;box(b,x,y,3.75,1.25,1.35,.09,0x567d79,{roughness:.4});box(b,x,y,3.83,1.42,.12,.22,C.cream);for(let dx of [-.69,0,.69])box(b,x+dx,y,3.85,.065,1.38,.13,C.cream);box(b,x,y-.67,3.85,1.42,.09,.3,C.cream);box(b,x,y+.68,3.85,1.42,.09,.2,C.cream);box(b,x+.21,y+.2,3.82,.33,.53,.025,0x9fb3a0,{roughness:.45})}
+ for(let side of [-1,1])for(let j=0;j<3;j++){let z=-2.4+j*2.4;box(b,side*10.05,y,z,.08,1.3,1.45,C.glass);box(b,side*10.1,y+.7,z,.18,.1,1.6,C.cream);box(b,side*10.1,y-.7,z,.18,.1,1.6,C.cream);for(let zz of [-.75,0,.75])box(b,side*10.1,y,z+zz,.16,1.4,.06,C.cream)} }
+ for(let x=-9.8;x<=9.8;x+=3.27)box(b,x,4.3,3.87,.22,8.5,.24,0xe8dbc3);
+ // Distinct warm corner tower, porch, double doors, stairs and signage.
+ box(b,-8.65,4.85,0,3.0,9.7,7.65,0xc39176);for(let y=1;y<9;y+=2.05){box(b,-8.65,y,3.88,1.5,1.3,.12,0x6c8980);for(let x of [-9.43,-7.87])box(b,x,y,3.98,.12,1.45,.16,C.cream);box(b,-8.65,y+.75,3.98,1.8,.16,.2,C.cream)}
+ box(b,0,1.42,3.83,4.2,2.5,.15,0x587c74);for(let x of [-2.1,0,2.1])box(b,x,1.42,3.96,.12,2.5,.2,0xe8dfc5);box(b,0,2.76,4.15,5.0,.24,1.5,C.cream);for(let x of [-2.4,2.4]){box(b,x,1.36,4.55,.25,2.65,.25,C.cream);box(b,x,.13,4.55,.55,.26,.55,0xc5b89b)}
+ box(b,0,.03,4.8,6,.2,2.0,0xc7bca2);box(b,0,-.035,5.65,6.5,.13,.75,0xd5cbb3);box(b,0,-.07,6.15,7,.08,.6,0xdcd3bb);
+ box(b,0,3.22,3.91,6.7,.72,.19,0xebe4ce);sign(b,'耕 莘 樓',0,3.23,4.025,5.8,.65);
+ doorway(b,0,4.18,'',0x4f7767);
+ sign(b,'CARDINAL TIEN',5.9,8.13,3.91,5.0,.45,'#5f6e58','#e4d5bd');
+ box(b,0,8.78,0,20.8,.3,8.1,0xbd9577);box(b,0,9.0,-3.9,20.7,.35,.16,C.cream);box(b,0,9.0,3.9,20.7,.35,.16,C.cream);for(let side of [-1,1])box(b,side*10.2,9,0,.18,.35,8,C.cream);
+ box(b,-8.65,9.87,0,3.4,.3,8.0,0xf0e7cf);box(b,-8.65,10.09,0,3.1,.15,7.6,0xa0795f);
+ for(let x of [1,3.2,5.4]){box(b,x,9.2,-1,1.6,.65,1.5,0xc0c6b5);for(let z=-1.5;z<-.4;z+=.2)box(b,x,9.54,z,1.3,.03,.05,0x8e9b8c)}
+ for(let x of [-3,-.8]){box(b,x,9.25,-1.7,1.8,.14,2.5,0x516e6b);for(let dx of [-.7,0,.7])box(b,x+dx,9.34,-1.7,.025,.025,2.4,0xa4bab2)}
+ // Side gardens, lawn beds, fence and trees.
+ for(let x of [-14.9,14.9]){box(campus,x,.05,-5,3.9,.2,13.6,0x97ad7c);for(let z of [-10,-5,0])tree(campus,x,z,1.25)}
+ for(let [x,z,s] of [[-15,8,1.35],[-11.7,7.8,1.0],[-15,4,1],[-9,9,1.1],[8,9.5,.95],[16,7.5,1.2],[16,11,1.0],[-8,-12,.9],[0,-12,.85],[9,-12,1.1]])tree(campus,x,z,s);
+ for(let x=-17;x<=17;x+=1.15){box(campus,x,.45,-13.6,.055,.9,.06,0x7e8d6c)}box(campus,0,.8,-13.6,35,.055,.08,0x879571);box(campus,0,.2,-13.6,35,.14,.2,0xc9c7aa);
+ for(let x of [-6,6]){shrub(campus,x,7.6,1.7);shrub(campus,x,4.7,1.7);planter(campus,x,1.1,true)}
+ for(let x of [-11,-6,6,11])planter(campus,x,-.6,x===6||x===-6);
+ bench(campus,-10,3.6);bench(campus,9.6,3.6);bench(campus,14,8.2,Math.PI/2);
+ for(let [x,z] of [[-5,10.4],[5,10.4],[-11.5,1.2],[11.5,1.2]])lamp(campus,x,z);
+ // A small octagonal fountain, with a quiet water surface.
+ let fountain=group(campus,10.3,0,7.7);cyl(fountain,0,.04,0,1.75,.12,0xc3b999,32);cyl(fountain,0,.24,0,1.45,.4,0xe5dbc2,12);cyl(fountain,0,.47,0,1.5,.15,0xcfc4a6,12);let water=cyl(fountain,0,.51,0,1.3,.03,0x8eb7ad,32);water.material=mat(0x91bdb3,{roughness:.27,metalness:.06});cyl(fountain,0,.8,0,.28,.6,0xd9cdb3,8);cyl(fountain,0,1.13,0,.65,.1,0xded3bc,12);cyl(fountain,0,1.19,0,.52,.02,0x94c0b7,16);addObstacle('campus',10.3,7.7,3.4,3.4);
+ for(let i=0;i<5;i++){let a=i*Math.PI*2/5;let r=new T.Mesh(new T.TorusGeometry(.46+i*.14,.008,4,32),mat(0xc1d6bf));r.rotation.x=-Math.PI/2;r.position.set(.12, .535+i*.001,.1);fountain.add(r)}
+ // Welcome board and a flag at the approach.
+ let board=group(campus,-4.5,0,9.1);for(let x of [-.78,.78])box(board,x,.8,0,.09,1.6,.11,C.wood);box(board,0,1.55,0,2.0,1.1,.18,C.cream);sign(board,'今日挑戰 · 3 題',0,1.58,.101,1.82,.7);board.rotation.y=.2;addObstacle('campus',-4.5,9.1,2,.6);
+ cyl(campus,-5.3,2.8,-.4,.045,5.6,0xa4aaa0,10);let flag=box(campus,-4.7,5.1,-.4,1.2,.7,.025,0x718c67);flag.rotation.y=.18;
+ // Pigeons and two ambient students are geometry, not emoji or sprites.
+ for(let [x,z] of [[3,7],[-2,4],[11,5]]){let pigeon=group(campus,x,.03,z);ball(pigeon,0,.13,0,.15,0x969d91,1).scale.set(.8,.8,1.3);ball(pigeon,0,.27,.12,.08,0x717f75,1);let beak=mesh(new T.ConeGeometry(.025,.09,4),0xb99864,pigeon,0,.26,.23);beak.rotation.x=Math.PI/2}
+ const ambient=[person(campus,-8,2,{shirt:0xd6b28f,bag:true,scale:.85}),person(campus,6.8,2.9,{shirt:0x92a3a0,pants:0xc2b49c,scale:.9})];ambient[0].g.rotation.y=.8;ambient[1].g.rotation.y=-1.3;
+ // A complete cutaway learning room, constructed separately from campus.
+ roundPlate(indoor,25,20,.6,1,-1.0,0xc7bfa3);box(indoor,0,-.2,0,24,.25,19,0xded6bd);
+ for(let x=-11.5;x<12;x+=1)for(let z=-8.5;z<9;z+=1){let m=box(indoor,x,-.055,z,.975,.04,.975,(Math.round(x+z)%2)?0xe9e1cc:0xe4dcc5);m.castShadow=false}
+ box(indoor,0,2.6,-9.3,24,5.3,.35,0xe3d8bf);box(indoor,-11.8,2.6,0,.35,5.3,19,0xe9dfc7);box(indoor,11.8,.6,0,.35,1.3,19,0xd5c7a8);
+ box(indoor,0,.38,-9.0,23.7,.65,.12,0xa8b295);box(indoor,-11.57,.38,0,.12,.65,18.6,0xa8b295);box(indoor,0,5.25,-9.3,24.5,.18,.5,0x9caa8a);box(indoor,-11.8,5.25,0,.5,.18,19,0x9caa8a);
+ // Back chalkboard, notice boards and glazing.
+ box(indoor,0,2.8,-9.03,8.7,2.5,.16,0x967f59);box(indoor,0,2.8,-8.91,8.35,2.18,.12,0x426553);sign(indoor,'今天，學會一點新的。',0,3.05,-8.83,7.2,.9,'#e9e5cc','#426553');sign(indoor,'LEARN · PRACTISE · GROW',0,2.3,-8.82,5.7,.48,'#c5d5b8','#426553');box(indoor,0,1.56,-8.66,8.7,.12,.45,C.wood);
+ for(let z of [-6,-2,2]){box(indoor,-11.56,3.2,z,.05,2.3,2.8,0xa4bbb0);box(indoor,-11.47,3.2,z,.14,2.5,.1,C.cream);box(indoor,-11.46,3.2,z-1.45,.15,2.5,.12,C.cream);box(indoor,-11.46,3.2,z+1.45,.15,2.5,.12,C.cream);box(indoor,-11.46,4.47,z,.15,.12,3.0,C.cream);box(indoor,-11.46,1.95,z,.4,.14,3.0,C.cream)}
+ let board2=group(indoor,8,0,-8.8);box(board2,0,2.7,0,3.8,2.5,.18,0xbda47d);for(let i=0;i<4;i++){let paper=box(board2,-.85+(i%2)*1.7,2.2+Math.floor(i/2)*1.0,.12,1.1,.75,.02,[0xf1dfb2,0xe6d9b9,0xc7d1b0,0xe6c8b0][i]);paper.rotation.z=(i%2?.04:-.03)}
+ function desk(x,z,main=false){let g=group(indoor,x,0,z);let w=main?3.8:2.3,d=main?1.65:1.4;box(g,0,1.15,0,w,.18,d,main?0xbb8c5d:0xc7a878);for(let dx of [-w/2+.2,w/2-.2])for(let dz of [-d/2+.18,d/2-.18])box(g,dx,.52,dz,.09,1.05,.09,0x70795f);box(g,0,.6,-d/2+.2,w-.3,.35,.08,0x9b997b);box(g,-.4,1.28,.1,.68,.09,.48,0x6b8c76);box(g,-.4,1.34,.1,.62,.03,.44,0xe8e3c8);let computer=group(g,.7,1.3,-.2);box(computer,0,.29,0,.95,.6,.06,0x58695b);box(computer,0,.3,.04,.83,.46,.02,0x9fc3b5);box(computer,0,-.03,.16,1,.06,.6,0x6d7b66);addObstacle('room',x,z,w+.3,d+.3);return g}
+ desk(0,-1.7,true);desk(-6,-3);desk(-6,1.2);desk(6,-3);desk(6,1.2);
+ function chair(x,z,rot=0){let g=group(indoor,x,0,z);g.rotation.y=rot;box(g,0,.63,0,.75,.14,.72,0x91a27c);box(g,0,1.02,.35,.75,.7,.12,0x91a27c);for(let dx of [-.27,.27])for(let dz of [-.26,.26])box(g,dx,.3,dz,.07,.6,.07,0x6f7f63);addObstacle('room',x,z,.9,.9)}
+ chair(0,-3.2);for(let x of [-6,6])for(let z of [-1.7,2.5])chair(x,z);
+ // Bookcase with uneven books, cabinet and lounge corner.
+ let shelf=group(indoor,-8.8,0,6.2);box(shelf,0,1.3,0,4.2,2.6,.8,0xb89c72);for(let y of [.12,1.0,1.9,2.65])box(shelf,0,y,.03,4.4,.12,1,0xd1b892);for(let i=0;i<14;i++){let x=-1.9+i*.28,h=.45+rand()*.3;box(shelf,x,.66+h/2,.2,.18,h,.52,[0x718e75,0xb78770,0xceb879,0x8b9d97][i%4]);box(shelf,x,1.98+.3,.2,.2,.5,.5,[0x9fae85,0xc1a683,0x83998b][i%3])}addObstacle('room',-8.8,6.2,4.8,1.2);
+ box(indoor,8,1.0,6.0,3.8,2,1.4,0xc0b18f);for(let x of [7,9]){box(indoor,x,1.0,6.73,1.65,1.8,.1,0xd1c3a3);box(indoor,x+.5,1.15,6.81,.05,.25,.05,0x6b7963)}addObstacle('room',8,6,4.1,1.7);
+ planter(indoor,10,-7,true);planter(indoor,-10,7);planter(indoor,10,8,true);addObstacle('room',10,-7,1.4,1.4);addObstacle('room',-10,7,1.3,1.3);addObstacle('room',10,8,1.4,1.4);
+ let senior=person(indoor,-3.2,3.1,{shirt:0x718e78,pants:0xe0d7bf,bag:false,scale:1.05});senior.g.rotation.y=.3;
+ let indoorStudent=person(indoor,6,2.45,{shirt:0xf1e8d0,pants:0x879b8c,bag:false,scale:.85});indoorStudent.g.rotation.y=Math.PI;
+ doorway(indoor,0,8.85,'E · 返回校園',0x668879);
+ let player=person(scene,1.8,9.5,{shirt:0xf4eee1,pants:0x537767,hair:0x443b32,bag:true,scale:1.05});
+ // A ground-level destination ring and path dots make movement readable.
+ let destination=new T.Mesh(new T.RingGeometry(.3,.42,32),new T.MeshBasicMaterial({color:0xc1955a,side:T.DoubleSide,transparent:true,opacity:.85}));destination.rotation.x=-Math.PI/2;destination.position.y=.02;scene.add(destination);destination.visible=false;
+ let routeDots=new T.Group();scene.add(routeDots);
+ function marker(parent,x,z){let g=group(parent,x,.03,z);let ring=new T.Mesh(new T.RingGeometry(.68,.8,48),new T.MeshBasicMaterial({color:0xd8b36e,side:T.DoubleSide,transparent:true,opacity:.75}));ring.rotation.x=-Math.PI/2;g.add(ring);let glow=cyl(g,0,.015,0,.66,.015,0xd6c59a,32);glow.material=new T.MeshBasicMaterial({color:0xe8d3a1,transparent:true,opacity:.3});return {g,ring}}
+ let entryMarker=marker(campus,0,1.6),deskMarker=marker(indoor,0,.1),helpMarker=marker(indoor,-3.2,4.6);
+ points=[{id:'entrance',mode:'campus',x:0,z:1.6,radius:1.7,title:'校舍入口',subtitle:'靠近門按 E，選擇要進入的場域',button:'按 E 選擇場域 →',type:'CAMPUS DOOR'}, {id:'desk',mode:'room',x:0,z:.1,radius:1.6,title:'今日挑戰桌',subtitle:'從你的題庫抽出三題練習',button:'開始三題挑戰 →',type:'LEARNING CHALLENGE'}, {id:'senior',mode:'room',x:-3.2,z:4.6,radius:1.5,title:'學長姐',subtitle:'先聽聽準備挑戰的小建議',button:'向學長姐請教 →',type:'YOUR LEARNING PARTNER'}, {id:'shelf',mode:'room',x:-7.8,z:4.7,radius:1.5,title:'題庫收藏櫃',subtitle:'加入、整理與修改自己的題目',button:'打開題庫工坊 →',type:'QUESTION COLLECTION'}, {id:'exit',mode:'room',x:0,z:8,radius:1.5,title:'室內出口門',subtitle:'靠近門按 E 返回校園',button:'按 E 返回校園 →',type:'ROOM EXIT'}, {id:'garden-exit',mode:'campus',x:0,z:8,radius:1.5,title:'花園出口門',subtitle:'靠近門按 E 返回校園',button:'按 E 返回校園 →',type:'GARDEN EXIT'}];
+ function addLabel(id,text,worldPosition,which){let el=document.createElement('div');el.className='label';el.innerHTML=text;document.querySelector('#labels').append(el);labels.push({id,el,pos:new T.Vector3(...worldPosition),which})}
+ addLabel('building','<small>01</small> 耕莘樓 · 學習入口',[0,5.2,-1.3],'campus');addLabel('fountain','中庭花園',[10.3,1.6,7.7],'campus');addLabel('desk','<span class="status"></span>今日挑戰桌',[0,2.1,-1.7],'room');addLabel('senior','學長姐 · 學習夥伴',[-3.2,2.5,3.1],'room');addLabel('shelf','我的題庫收藏',[-8.8,3,6.2],'room');
+ // Bake only static meshes into material batches. Animated people and flag retain their skeletons.
+ function batchStatic(root,exclude){root.updateMatrixWorld(true);let buckets=new Map(),remove=[];root.traverse(obj=>{if(!obj.isMesh)return;let current=obj;while(current&&current!==root){if(exclude.has(current))return;current=current.parent}if(Array.isArray(obj.material))return;let bucket=buckets.get(obj.material)||[];let geometry=obj.geometry.clone();geometry.applyMatrix4(obj.matrixWorld);bucket.push(geometry);buckets.set(obj.material,bucket);remove.push(obj)});for(let [material,geometries] of buckets){let baked=mergeGeometries(geometries,false);if(baked){let m=new T.Mesh(baked,material);m.castShadow=true;m.receiveShadow=true;root.add(m)}geometries.forEach(g=>g.dispose())}remove.forEach(m=>{m.parent.remove(m);m.geometry.dispose()})}
+ batchStatic(campus,new Set([...ambient.map(p=>p.g),flag,entryMarker.g]));batchStatic(indoor,new Set([senior.g,indoorStudent.g,deskMarker.g,helpMarker.g]));
+
+ let areas=[{id:'campus',name:'新店校園',template:'campus'},{id:'room',name:'教學大樓',template:'classroom'}],activeArea='campus',accessible=['campus','room'];
+ const profiles=new Map([['campus',{root:campus,obstacles:obstacles.campus}],['classroom',{root:indoor,obstacles:obstacles.room}]]);
+ function profile(template){if(profiles.has(template))return profiles.get(template);let root=group(scene),obs=[],outdoor=template==='garden';root.visible=false;
+  roundPlate(root,outdoor?37:23,outdoor?26:17,.65,1.2,-.7,outdoor?0xc1cda3:0xe4ddcb);
+  const obstacle=(x,z,w,d)=>obs.push({x,z,w,d});
+  if(outdoor){box(root,0,-.05,0,5,.1,24,0xe4dcc6);for(let [x,z]of [[-12,-7],[12,-7],[-12,8],[12,8]]){cyl(root,x,.8,z,.2,1.6,0x8c7656);ball(root,x,2.5,z,1.4,0x8caa76);obstacle(x,z,1.6,1.6);}for(let x of [-9,9]){box(root,x,.45,0,3,.3,1,0xb18e64);obstacle(x,0,3.2,1.2);}sign(root,'校 園 花 園',0,2.2,-9,5,.8);}
+  else{box(root,0,1.7,-8.6,23,.0+3.4,.25,0xe7dbc2);box(root,-11.4,1.7,0,.25,3.4,17,0xe9dfce);sign(root,template==='library'?'圖 書 閱 讀 空 間':'護 理 技 能 教 室',0,2.1,-8.4,7,.8);
+   if(template==='library'){for(let x of [-9,9])for(let z of [-5,0,5]){box(root,x,1.2,z,2.5,2.4,2.4,0xb49b74);for(let y of [.5,1.2,1.9]){box(root,x,y,z+.1,2.4,.1,2.5,0xd3be99);for(let i=0;i<6;i++)box(root,x-1+i*.37,y+.27,z+1.16,.23,.45,.28,[0x74937a,0xb8876f,0xd1bd7d][i%3]);}obstacle(x,z,2.8,2.7);}for(let x of [-4,4]){box(root,x,.9,-4,3.2,.2,1.8,0xd2b78d);box(root,x,.4,-4,2.8,.8,1.4,0xe2d0ab);obstacle(x,-4,3.4,2);}}
+   else{for(let x of [-6,6])for(let z of [-4,2]){box(root,x,.5,z,3.5,.4,2,0xa2b7b2);box(root,x,.85,z,3.5,.3,1.9,0xf5f0df);box(root,x-1.25,1.1,z,.75,.2,1.5,0xe6e5d7);box(root,x+1.8,1.1,z,.15,1.5,2,0x718b88);cyl(root,x+2.6,1.5,z,.04,3,0x7d9491);box(root,x+2.6,2.5,z,.4,.6,.15,0xd2e2df);obstacle(x,z,4.6,2.4);}}}
+  let exit=doorwayFor(template);if(exit.type!=='entrance')doorway(root,exit.x,exit.z+.8,'E · 返回校園',outdoor?0x8d9972:0x60887d);
+  let result={root,obstacles:obs};profiles.set(template,result);return result;
+ }
+ function areaFor(id){return areas.find(a=>a.id===id)||areas[0];}
+ function areaOf(e){return e.areaId||e.scene;}
+ function isHere(e){return e.scene===mode&&areaOf(e)===activeArea;}
+ function pointHere(p){if(p.id==='garden-exit')return areaFor(activeArea).template==='garden';return p.mode===mode&&(p.areaId?p.areaId===activeArea:p.id==='entrance'?areaFor(activeArea).template==='campus':p.id==='exit'?mode==='room':true);}
+ function setAreas(list){areas=structuredClone(list);for(let a of areas)profile(a.template);if(!areas.some(a=>a.id===activeArea))activeArea=areas[0].id;activateArea(activeArea,false);}
+ function activateArea(id,spawn=true){let a=areas.find(a=>a.id===id);if(!a)return false;if(!authorMode&&!accessible.includes(id)){onMessage('此場域尚未開放或不在目前視野設定中。');return false;}clearRoute();activeArea=id;mode=templateMode(a.template);for(let p of profiles.values())p.root.visible=false;let selectedProfile=profile(a.template);selectedProfile.root.visible=true;obstacles[mode]=selectedProfile.obstacles;
+  if(spawn){player.g.position.set(0,0,mode==='room'?7.8:3);player.g.rotation.y=mode==='room'?Math.PI:0;}near=null;following=false;resetCamera();for(let [entityId,g]of entityModels)g.visible=isHere(authored.find(e=>e.id===entityId));onLocation(mode);updateNear();return true;
+ }
+ function setAccess(ids){accessible=[...ids];}
+ const MINX=-18,MINZ=-14,STEP=.5,W=73,H=58;
+ const cell=v=>({x:Math.round((v.x-MINX)/STEP),z:Math.round((v.z-MINZ)/STEP)});
+ const real=c=>({x:c.x*STEP+MINX,z:c.z*STEP+MINZ});
+ function blocked(x,z){let p=real({x,z}),lim=mode==='campus'?{x:18,z:14.3}:{x:11.1,z:8.6};if(Math.abs(p.x)>lim.x||Math.abs(p.z)>lim.z)return true;return obstacles[mode].some(o=>Math.abs(p.x-o.x)<o.w/2+.32&&Math.abs(p.z-o.z)<o.d/2+.32)||(authored||[]).some(e=>isHere(e)&&['tree','bench'].includes(e.kind)&&Math.hypot(e.x-p.x,e.z-p.z)<.6)}
+ function validateLayout(entities,areaList=areas){let issues=[];for(let e of entities){let a=areaList.find(a=>a.id===areaOf(e))||areaList[0],obs=profile(a.template).obstacles,lim=e.scene==='campus'?{x:17.5,z:11}:{x:10.5,z:8};if((e.scene==='campus'&&Math.abs(e.x)<1.3&&Math.abs(e.z-1.6)<1.4)||(e.scene==='room'&&Math.abs(e.x)<1.3&&e.z>6.7)||Math.abs(e.x)>lim.x||Math.abs(e.z)>lim.z||obs.some(o=>Math.abs(e.x-o.x)<o.w/2+.5&&Math.abs(e.z-o.z)<o.d/2+.5)){issues.push(e.name+' 在建築、家具或場景邊界內');continue}if(entities.some(n=>n.id!==e.id&&areaOf(n)===areaOf(e)&&Math.hypot(n.x-e.x,n.z-e.z)<1.3))issues.push(e.name+' 與其他素材太靠近');if(['tree','bench'].includes(e.kind))continue;let obstacle=(x,z)=>{let p=real({x,z});return Math.abs(p.x)>lim.x||Math.abs(p.z)>lim.z||obs.some(o=>Math.abs(p.x-o.x)<o.w/2+.32&&Math.abs(p.z-o.z)<o.d/2+.32)||entities.some(n=>areaOf(n)===areaOf(e)&&['tree','bench'].includes(n.kind)&&Math.hypot(n.x-p.x,n.z-p.z)<.6)};if(!findPath(cell({x:0,z:e.scene==='campus'?3:7.8}),cell(e),obstacle,W,H).length)issues.push(e.name+' 從場景入口無法走到')}return [...new Set(issues)]}
+
+ function clearRoute(){path=[];routeAction=null;destination.visible=false;for(let child of [...routeDots.children]){routeDots.remove(child);child.geometry.dispose()}}
+ function walkTo(x,z,action=null){let start=cell(player.g.position),end=cell({x,z});let cells=findPath(start,end,blocked,W,H);if(!cells.length){onMessage('那裡是建築或障礙物，請點選可行走的地面。');return false}clearRoute();path=cells.slice(1).map(real);routeAction=action;if(!path.length){action?.();return true}destination.position.set(x,.025,z);destination.visible=true;for(let i=1;i<path.length;i+=3){let dot=new T.Mesh(new T.CircleGeometry(.035,6),mat(0xa0936d));dot.rotation.x=-Math.PI/2;dot.position.set(path[i].x,.025,path[i].z);routeDots.add(dot)}return true}
+ let pointerStart=null;const raycaster=new T.Raycaster(),plane=new T.Plane(new T.Vector3(0,1,0),0);
+ function pointAt(clientX,clientY){let r=renderer.domElement.getBoundingClientRect();raycaster.setFromCamera(new T.Vector2((clientX-r.left)/r.width*2-1,-(clientY-r.top)/r.height*2+1),camera);let v=new T.Vector3();return raycaster.ray.intersectPlane(plane,v)?{x:Math.round(v.x*2)/2,z:Math.round(v.z*2)/2}:null}
+ function pick(clientX,clientY){pointAt(clientX,clientY);let hits=raycaster.intersectObjects([...entityModels.values()].filter(g=>g.visible),true);for(let hit of hits){let obj=hit.object;while(obj&&!obj.userData.entityId)obj=obj.parent;if(obj?.userData.entityId)return obj.userData.entityId}return null}
+ renderer.domElement.addEventListener('pointerdown',e=>{pointerStart={x:e.clientX,y:e.clientY,id:e.pointerId};if(authorMode&&!placeKind){let id=pick(e.clientX,e.clientY);if(id){onSelect(id);dragEntity={id,moved:false};controls.enabled=false;renderer.domElement.setPointerCapture(e.pointerId)}}});
+ renderer.domElement.addEventListener('pointermove',e=>{if(!authorMode||!dragEntity||!pointerStart)return;if(Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y)<6&&!dragEntity.moved)return;dragEntity.moved=true;let p=pointAt(e.clientX,e.clientY);if(p&&canPlace(p.x,p.z,mode,dragEntity.id)){let g=entityModels.get(dragEntity.id);g.position.x=p.x;g.position.z=p.z;dragEntity.valid=p}});
+ renderer.domElement.addEventListener('pointerup',e=>{controls.enabled=true;if(dragEntity){let d=dragEntity;dragEntity=null;pointerStart=null;if(d.valid)onDrag(d.id,d.valid.x,d.valid.z);return}if(!pointerStart||Math.hypot(e.clientX-pointerStart.x,e.clientY-pointerStart.y)>7)return;pointerStart=null;let p=pointAt(e.clientX,e.clientY);if(!p)return;if(authorMode){if(placeKind)onPlace(placeKind,mode,p.x,p.z);else onSelect(null);return}if(!paused)walkTo(p.x,p.z)});
+ renderer.domElement.addEventListener('pointercancel',()=>{controls.enabled=true;dragEntity=null;pointerStart=null});
+ renderer.domElement.addEventListener('dragover',e=>e.preventDefault());renderer.domElement.addEventListener('drop',e=>{e.preventDefault();if(!authorMode)return;let kind=e.dataTransfer.getData('campus-kind'),moving=e.dataTransfer.getData('campus-move'),p=pointAt(e.clientX,e.clientY);if(moving&&p){if(canPlace(p.x,p.z,mode,moving))onDrag(moving,p.x,p.z);else onMessage('這裡無法放置，已保留原位置。')}else if(kind&&p)onPlace(kind,mode,p.x,p.z)});
+ document.addEventListener('pointermove',e=>{if(!dragEntity?.fromLabel)return;let d=dragEntity,p=pointAt(e.clientX,e.clientY);if(!p)return;let x=p.x+d.offset.x,z=p.z+d.offset.z;if(canPlace(x,z,mode,d.id)){entityModels.get(d.id).position.set(x,0,z);d.valid={x,z}}});
+ document.addEventListener('pointerup',()=>{if(!dragEntity?.fromLabel)return;let d=dragEntity;dragEntity=null;pointerStart=null;controls.enabled=true;if(d.valid)onDrag(d.id,d.valid.x,d.valid.z);else{entityModels.get(d.id)?.position.set(d.original.x,0,d.original.z)}});
+ function canPlace(x,z,which=mode,ignore=null,areaId=activeArea){let lim=which==='campus'?{x:17.5,z:11}:{x:10.5,z:8},obs=profile(areaFor(areaId).template).obstacles;if(Math.abs(x)>lim.x||Math.abs(z)>lim.z)return false;if(which==='campus'&&Math.abs(x)<1.3&&Math.abs(z-1.6)<1.4)return false;if(which==='room'&&Math.abs(x)<1.3&&z>6.7)return false;if(obs.some(o=>Math.abs(x-o.x)<o.w/2+.5&&Math.abs(z-o.z)<o.d/2+.5))return false;return !(authored||[]).some(e=>e.id!==ignore&&areaOf(e)===areaId&&Math.hypot(e.x-x,e.z-z)<1.3)}
+
+ function setEntities(entities){clearRoute();near=null;onNear(null);authored=structuredClone(entities);for(let g of entityModels.values()){scene.remove(g);g.traverse(m=>{if(m.isMesh)m.geometry.dispose()})}entityModels.clear();for(let l of labels.filter(l=>l.authored))l.el.remove();labels=labels.filter(l=>!l.authored);for(let l of labels)if(['desk','senior','shelf'].includes(l.id))l.disabled=true;senior.g.visible=false;deskMarker.g.visible=false;helpMarker.g.visible=false;
+ for(let e of authored){let g=group(scene,e.x,0,e.z);g.userData.entityId=e.id;g.rotation.y=(e.yaw||0)*Math.PI/180;g.visible=isHere(e);entityModels.set(e.id,g);
+ if(e.kind==='npc'){let personModel=person(g,0,-.45,{shirt:0x6d927e,pants:0xe2d7b9,bag:false});personModel.g.rotation.y=0}
+ else if(e.kind==='tree'){let tr=group(g);cyl(tr,0,.65,0,.12,1.3,0x8e7756,7);ball(tr,0,1.8,0,.95,C.leaf,1);ball(tr,.4,2.1,0,.6,C.leaf2,1)}
+ else if(e.kind==='bench'){for(let dx of [-.7,.7])box(g,dx,.3,0,.1,.6,.5,0x58715b);box(g,0,.64,0,1.8,.14,.6,C.wood);box(g,0,.95,-.25,1.8,.55,.12,C.wood)}
+ else if(e.kind==='knowledge'){box(g,0,.8,-.4,.2,1.6,.2,0x8c805c);box(g,0,1.5,-.4,1.7,1.0,.18,0xe9ddbc);sign(g,'知 識 卡',0,1.5,-.29,1.5,.6);box(g,0,1.0,-.4,2,.12,.5,0x8fa27b)}
+ else if(e.kind==='challenge'){box(g,0,.55,-.45,1.8,1.1,.9,0xba9770);box(g,0,1.15,-.45,2,.15,1.1,0xe3cfab);box(g,0,1.5,-.7,1.0,.65,.08,0x536b5c);box(g,0,1.5,-.65,.87,.5,.015,0xa3c8b6)}
+ else{cyl(g,0,.1,0,.65,.2,0xb59d70,8);cyl(g,0,.8,0,.08,1.4,0x58745c,8);box(g,.4,1.35,0,.8,.6,.04,0xc69259)}
+ if(!['tree','bench'].includes(e.kind)){let ring=new T.Mesh(new T.RingGeometry(.65,.73,32),new T.MeshBasicMaterial({color:0xd4ad67,side:T.DoubleSide}));ring.rotation.x=-Math.PI/2;ring.position.y=.03;g.add(ring);let el=document.createElement('div');el.className='label';el.textContent=e.name;el.dataset.authorEntity=e.id;el.draggable=false;el.onclick=ev=>{if(authorMode){ev.stopPropagation();onSelect(e.id)}};el.onpointerdown=ev=>{if(!authorMode)return;ev.preventDefault();onSelect(e.id);let start=pointAt(ev.clientX,ev.clientY);if(!start)return;dragEntity={id:e.id,fromLabel:true,offset:{x:e.x-start.x,z:e.z-start.z},original:{x:e.x,z:e.z}};pointerStart={x:ev.clientX,y:ev.clientY,id:ev.pointerId};controls.enabled=false;el.setPointerCapture(ev.pointerId)};document.querySelector('#labels').append(el);labels.push({id:e.id,el,pos:new T.Vector3(e.x,2.4,e.z),which:e.scene,areaId:areaOf(e),authored:true})}}
+ points=points.filter(p=>['entrance','exit','garden-exit'].includes(p.id));for(let e of authored)if(!['tree','bench'].includes(e.kind))points.push({id:e.id,mode:e.scene,areaId:areaOf(e),x:e.x,z:e.z,radius:1.45,title:e.name,subtitle:({knowledge:'閱讀與收藏知識卡',npc:'選擇對話與學習路線',challenge:'依作者設定進行挑戰',goal:'完成任務並回顧筆記'})[e.kind],button:'開始互動 →',type:'STUDENT AUTHORED'});}
+ function setEditing(value){authorMode=value;controls.enabled=true;clearRoute();player.g.visible=!value;near=null;onNear(null)}
+ function changeScene(which){let a=areas.find(a=>a.id===which)||areas.find(a=>templateMode(a.template)===which);if(a)activateArea(a.id);}
+ function enter(){let a=areas.find(a=>templateMode(a.template)==='room'&&(authorMode||accessible.includes(a.id)));if(a)activateArea(a.id);else onMessage('目前沒有已開放的室內場域。');}
+ function exit(){let a=areas.find(a=>templateMode(a.template)==='campus'&&(authorMode||accessible.includes(a.id)));if(a)activateArea(a.id);else onMessage('目前設定僅顯示此場域。');}
+
+ function resetCamera(){camera.zoom=innerWidth<650?.95:1;camera.position.set(mode==='room'?26:34,mode==='room'?25:31,mode==='room'?31:42);controls.target.set(0,mode==='room'?1:2,mode==='room'?0:-.3);resize();controls.update()}
+ function resize(){let w=container.clientWidth,h=container.clientHeight,aspect=w/h,baseSpan=mode==='room'?30:38,span=w<650?Math.max(baseSpan,(mode==='room'?32:47)/aspect):baseSpan;camera.left=-span*aspect/2;camera.right=span*aspect/2;camera.top=span/2;camera.bottom=-span/2;camera.updateProjectionMatrix();renderer.setSize(w,h)}
+ new ResizeObserver(resize).observe(container);window.addEventListener('resize',resize);resize();resetCamera();
+ const keys=new Set();window.addEventListener('keydown',e=>{if(/INPUT|TEXTAREA|SELECT/.test(e.target.tagName)||document.querySelector('dialog[open]'))return;if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','w','a','s','d','W','A','S','D'].includes(e.key)){e.preventDefault();keys.add(e.key.toLowerCase());clearRoute()}if(e.key.toLowerCase()==='e'&&!paused&&near)document.querySelector('#interact')?.click()});window.addEventListener('keyup',e=>keys.delete(e.key.toLowerCase()));window.addEventListener('blur',()=>keys.clear());
+ function manualStep(direction,dt=.18){if(paused)return;let forward=new T.Vector3();camera.getWorldDirection(forward);forward.y=0;forward.normalize();let right=new T.Vector3().crossVectors(forward,new T.Vector3(0,1,0));let dir=direction==='up'?forward:direction==='down'?forward.negate():direction==='right'?right:right.negate();let speed=3.4*dt,px=player.g.position.x,pz=player.g.position.z,nx=px+dir.x*speed,nz=pz+dir.z*speed;if(!blocked(cell({x:nx,z:pz}).x,cell({x:nx,z:pz}).z))player.g.position.x=nx;if(!blocked(cell({x:player.g.position.x,z:nz}).x,cell({x:player.g.position.x,z:nz}).z))player.g.position.z=nz;player.g.rotation.y=Math.atan2(dir.x,dir.z)}
+ function updateNear(){let best=points.filter(pointHere).map(p=>({p,d:Math.hypot(p.x-player.g.position.x,p.z-player.g.position.z)})).filter(a=>a.d<a.p.radius).sort((a,b)=>a.d-b.d)[0]?.p||null;if(best?.id!==near?.id){near=best;onNear(best)}}
+ let clock=new T.Clock(),lastUI=0,lastFrame=0,lastPaused=false;
+ function animate(now=0){requestAnimationFrame(animate);if(document.hidden||(paused&&lastPaused)){clock.getDelta();return;}if(now-lastFrame<32)return;lastFrame=now;lastPaused=paused;let dt=Math.min(clock.getDelta(),.5);elapsed+=dt;let moving=false;
+ if(!paused&&!authorMode){if(keys.size){for(let [key,dir] of [['arrowup','up'],['w','up'],['arrowdown','down'],['s','down'],['arrowleft','left'],['a','left'],['arrowright','right'],['d','right']])if(keys.has(key)){manualStep(dir,dt);moving=true}}
+ else if(path.length){moving=true;let result=advanceRoute(player.g.position,path,3.6*dt);player.g.position.set(result.position.x,0,result.position.z);if(result.facing!==null)player.g.rotation.y=result.facing;path=result.path;if(!path.length){destination.visible=false;for(let c of [...routeDots.children]){routeDots.remove(c);c.geometry.dispose()}let action=routeAction;routeAction=null;action?.()}}}
+ let stride=moving?Math.sin(elapsed*11)*.55:0;player.legs[0].rotation.x=stride;player.legs[1].rotation.x=-stride;player.arms[0].rotation.x=-stride*.7;player.arms[1].rotation.x=stride*.7;player.body.position.y=.86+(moving?Math.abs(Math.sin(elapsed*11))*.035:Math.sin(elapsed*2)*.012);
+ for(let p of [...ambient,senior,indoorStudent])p.body.rotation.z=Math.sin(elapsed*1.3+p.g.position.x)*.018;
+ for(let m of [entryMarker,deskMarker,helpMarker]){m.ring.scale.setScalar(1+Math.sin(elapsed*2.4)*.06);m.ring.material.opacity=.62+Math.sin(elapsed*2.4)*.15}flag.rotation.y=.18+Math.sin(elapsed*2)*.05;
+ if(following){let desired=new T.Vector3(player.g.position.x,1.3,player.g.position.z),diff=desired.clone().sub(controls.target).multiplyScalar(.045);controls.target.add(diff);camera.position.add(diff)}
+ controls.update();if(elapsed-lastUI>.08){if(!authorMode)updateNear();for(let l of labels){l.el.style.display=l.which===mode&&!l.disabled&&(l.areaId?l.areaId===activeArea:(activeArea==='campus'&&mode==='campus'||activeArea==='room'&&mode==='room'))?'':'none';if(l.which===mode){let p=l.pos.clone().project(camera);l.el.style.left=((p.x*.5+.5)*container.clientWidth+container.getBoundingClientRect().left)+'px';l.el.style.top=((-p.y*.5+.5)*container.clientHeight+container.getBoundingClientRect().top)+'px';l.el.style.visibility=Math.abs(p.x)>1||Math.abs(p.y)>1?'hidden':'visible'}}lastUI=elapsed}
+ renderer.render(scene,camera);
+ }animate();
+ function fitEntities(entities,areaList=areas){let placed=[];for(let e of entities){let candidates=[{x:e.x,z:e.z}];let zs=e.scene==='campus'?[5,2,8,10,-.2]:[4.3,1,-1.2,-4.8,-6.5];for(let z of zs)for(let x of [-12,-9,-7,-4,-2,2,4,7,9,12])candidates.push({x,z});let pos=candidates.find(p=>!placed.some(o=>areaOf(o)===areaOf(e)&&Math.hypot(o.x-p.x,o.z-p.z)<1.6)&&!validateLayout([{...e,...p}],areaList).length);if(!pos)throw Error(e.name+' 找不到可行走的位置，請減少同場景關卡或人物。');placed.push({...e,...pos});}return placed;}
+ return {setAreas,setAccess,changeArea:activateArea,getArea:()=>activeArea,getAreaInfo:()=>structuredClone(areaFor(activeArea)),getPoints:()=>points.filter(pointHere).map(p=>({...p})),getObstacles:()=>structuredClone(obstacles[mode]),fitEntities,validateLayout,setEntities,setEditing,changeScene,canPlace,setPlacement:kind=>{placeKind=kind},selectEntity:id=>{for(let [key,g]of entityModels){g.scale.setScalar(key===id?1.08:1)}},enter,exit,home:()=>{following=false;resetCamera()},focus:()=>{following=!following;onMessage(following?'鏡頭跟隨人物；拖曳仍可調整視角。':'已關閉人物跟隨。')},setPaused:v=>{paused=v;keys.clear()},step:dir=>{clearRoute();manualStep(dir)},navigate:id=>{let p=points.find(p=>p.id===id&&pointHere(p));if(p){following=true;walkTo(p.x,p.z)}},getMode:()=>mode,getNear:()=>near,toggleDay:()=>{let evening=sun.intensity>3;sun.intensity=evening?2.7:3.8;sun.color.set(evening?0xffbd82:0xfff4d5);sun.position.set(evening?-28:-20,evening?13:32,18);scene.background.set(evening?0xe7d9c4:0xe8ebdc);scene.fog.color.copy(scene.background);return evening},metrics:()=>({mode,position:{x:player.g.position.x,z:player.g.position.z},near:near?.id,objects:renderer.info.render.calls,triangles:renderer.info.render.triangles})};
+}
