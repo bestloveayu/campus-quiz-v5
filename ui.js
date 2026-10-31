@@ -1,23 +1,24 @@
-import {setupStudio} from './studio.js?v=5.1';
+import {setupStudio} from './studio.js?v=5.0';
 import {setupWorkshop} from './workshop.js?v=5.0';
 import {parseText,mergeQuestions} from './text-core.mjs';
 import {extractDocument} from './document-reader.mjs';
-import {hintState} from './flow-core.mjs?v=5.1';
-import {createAuthor} from './author.js?v=5.1';
+import {hintState} from './flow-core.mjs?v=5.0';
+import {createAuthor} from './author.js?v=5.0';
 import {createWorld} from './world.js?v=5.0';
 import {validateBank,parseBank,gradeRound,validateBackup,demoBank,sampleText} from './core.mjs?v=5.0';
 import {offlineStorageKey,offlineBankState} from './offline-boot.mjs';
-import {installWindowDragging} from './window-drag.mjs';
+import {enableDraggableWindows} from './draggable-ui.mjs';
 const $=s=>document.querySelector(s),all=s=>[...document.querySelectorAll(s)];
-installWindowDragging();
-// Keep legacy JSON operations available, but out of the student's primary TXT workflow.
-const advancedBankBackup=document.createElement('details');
-advancedBankBackup.id='advancedBankBackup';
-advancedBankBackup.innerHTML='<summary>進階備份（題庫與紀錄 JSON）</summary><p class="muted small">完整保留既有題庫與作答紀錄的還原功能。</p>';
-$('#exportBank').parentElement.after(advancedBankBackup);
-advancedBankBackup.appendChild($('#exportBank'));
-advancedBankBackup.appendChild($('#exportAll'));
-advancedBankBackup.appendChild(document.querySelector('label[for="restoreFile"]'));
+enableDraggableWindows();
+// The everyday workflow uses TXT. Keep legacy JSON operations available only
+// through an intentionally collapsed advanced-backup section.
+const bankAdvanced=document.createElement('details');
+bankAdvanced.className='advanced-backup';
+bankAdvanced.innerHTML='<summary>進階備份（題庫與紀錄 JSON）</summary><p>此處只備份題庫與答題紀錄；完整作品請使用左側「進階備份」。</p>';
+const bankPage=document.querySelector('[data-page="bank"]');
+bankPage.append(bankAdvanced);
+for(const id of ['exportBank','exportAll'])bankAdvanced.append(document.getElementById(id));
+bankAdvanced.append(document.querySelector('label[for="restoreFile"]'));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const offlineGame=globalThis.__CAMPUS_OFFLINE_GAME__||null,key=offlineStorageKey('ctcn-island-v5-bank',offlineGame),letters=['A','B','C','D'];
 let state={version:1,questions:demoBank(),logs:[],edits:[],settings:{hints:true,passing:80,level:0},completed:false},storageError=false;
@@ -69,7 +70,7 @@ $('#copyPrompt').onclick=async()=>{let text='請只根據下列教材，製作�
 $('#editOptions').innerHTML=letters.map(l=>`<label>選項 ${l}<input id="editOption${l}" required></label>`).join('');
 function editQuestion(id){editing=id||null;let q=state.questions.find(q=>q.id===id)||{text:'',options:['','','',''],answer:'A',difficulty:1,explanation:'',hint:'',source:''};$('#editBank').value=q.bank||'未分類';$('#editText').value=q.text;letters.forEach((l,i)=>$('#editOption'+l).value=q.options[i]);$('#editAnswer').value=q.answer;$('#editDifficulty').value=q.difficulty;$('#editExplanation').value=q.explanation;$('#editHint').value=q.hint;$('#editSource').value=q.source;$('#editError').textContent='';openModal('#questionDialog')}
 $('#addQuestion').onclick=()=>editQuestion();$('#cancelQuestion').onclick=()=>closeModal('#questionDialog');$('#questionForm').onsubmit=e=>{e.preventDefault();try{let q=validateBank([{id:editing||undefined,bank:$('#editBank').value,text:$('#editText').value,options:letters.map(l=>$('#editOption'+l).value),answer:$('#editAnswer').value,difficulty:+$('#editDifficulty').value,explanation:$('#editExplanation').value,hint:$('#editHint').value,source:$('#editSource').value}])[0],idx=state.questions.findIndex(x=>x.id===editing);if(idx<0&&state.questions.length>=500)throw Error('題庫上限 500 題');if(idx>=0)q.id=editing;state.edits.push({at:new Date().toISOString(),action:idx<0?'add':'edit',before:idx<0?null:structuredClone(state.questions[idx]),after:structuredClone(q)});if(idx<0)state.questions.push(q);else state.questions[idx]=q;state.version++;save();render();closeModal('#questionDialog');toast('已儲存題目與修改歷程。')}catch(err){$('#editError').textContent=err.message}};
-$('#exportBank').onclick=()=>download('耕莘題庫-v'+state.version+'.json',JSON.stringify({version:state.version,questions:state.questions},null,2));$('#exportAll').onclick=()=>download('耕莘學習島-完整備份.json',JSON.stringify({format:'ctcn-island-v5-bank',...state},null,2));
+$('#exportBank').onclick=()=>download('耕莘題庫-v'+state.version+'.json',JSON.stringify({version:state.version,questions:state.questions},null,2));$('#exportAll').onclick=()=>download('學習大挑戰-完整備份.json',JSON.stringify({format:'ctcn-island-v5-bank',...state},null,2));
 $('#exportCSV').onclick=()=>{let logs=activeLogs();if(!logs.length){toast('完成一回合後即可下載答題紀錄。');return}let cell=v=>'"'+String(v??'').replace(/^[=+@-]/,"'$&").replace(/"/g,'""')+'"',rows=[['回合ID','時間','題庫版本','通關分數','分數','題目ID','題目','作答','正解','答對','使用提示','解析','來源']];logs.forEach(l=>l.results.forEach(r=>rows.push([l.id,l.at,l.version,l.settings.passing,l.score,r.question.id,r.question.text,r.answer,r.question.answer,r.correct,r.hintUsed,r.question.explanation,r.question.source])));download('耕莘答題紀錄.csv','\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n'),'text/csv;charset=utf-8')};
 try{world=createWorld({container:$('#world'),onLocation:mode=>{if(author)author.location(mode);else updateMission(mode)},onNear,onMessage:toast,onSelect:id=>author?.select(id),onPlace:(...args)=>author?.place(...args),onDrag:(...args)=>author?.move(...args)});render();author=createAuthor({world,toast,getQuestions:()=>state.questions,getVersion:()=>state.version,getSettings:()=>structuredClone(state.settings),getExtras:()=>({questionBank:state.questions,materialVersion:state.version,quizLogs:state.logs,questionEdits:state.edits,quizSettings:state.settings}),applyExtras:obj=>{if(obj.questionBank){let validated=obj.questionBank.length?validateBank(obj.questionBank):[];if(!Array.isArray(obj.quizLogs||[])||!Array.isArray(obj.questionEdits||[]))throw Error('題庫備份歷程不正確');state.questions=validated.map((q,i)=>({...q,id:obj.questionBank[i].id||q.id}));state.version=Number.isInteger(obj.materialVersion)?obj.materialVersion:1;state.logs=structuredClone(obj.quizLogs||[]);state.edits=structuredClone(obj.questionEdits||[]);if(obj.quizSettings)state.settings=structuredClone(obj.quizSettings);save();render()}},startChallenge:startQuiz});setupWorkshop({author,world,toast,getState:()=>state,applyQuestions:questions=>{state.edits.push({at:new Date().toISOString(),action:'TXT題庫匯入',before:structuredClone(state.questions),after:structuredClone(questions)});state.questions=structuredClone(questions);state.version++;save();render();},save,render});setupStudio({author,world,toast});$('#help').onclick=()=>author.showHelp();requestAnimationFrame(()=>$('#loading').classList.add('hidden'))}catch(e){$('#loading').innerHTML='<div class="webgl-error"><h2>編輯器無法啟動</h2><p>'+esc(e.message)+'</p><p>請確認使用本機網址與支援 WebGL 的瀏覽器。</p></div>'}
 
